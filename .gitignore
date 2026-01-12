@@ -30,6 +30,10 @@ htmlcov/
 .env
 .env.local
 
+# Database files
+data/*.db
+*.db
+
 # OS
 .DS_Store
 Thumbs.db

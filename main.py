@@ -1,44 +1,10 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+"""
+Root entry point for Nixpacks deployment.
 
-app = FastAPI(
-    title="UDO API",
-    description="Unternehmensdaten API",
-    version="0.1.0"
-)
+This file re-exports the FastAPI app from app.main for compatibility
+with the Nixpacks deployment configuration.
+"""
+from app.main import app
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/")
-async def root():
-    return {
-        "message": "Welcome to UDO API",
-        "version": "0.1.0"
-    }
-
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "service": "udo-api"
-    }
-
-
-@app.get("/api/dummy")
-async def dummy_endpoint():
-    return {
-        "data": "This is a dummy endpoint",
-        "example": {
-            "id": 1,
-            "name": "Sample Company",
-            "status": "active"
-        }
-    }
+# Re-export for: fastapi run main.py
+__all__ = ["app"]
