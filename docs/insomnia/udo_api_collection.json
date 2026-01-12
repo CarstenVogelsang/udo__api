@@ -1,0 +1,537 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2025-01-12T16:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_udo_api",
+      "parentId": null,
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "UDO API",
+      "description": "Unternehmensdaten.org API - Geodaten & Unternehmen",
+      "scope": "collection",
+      "_type": "workspace"
+    },
+    {
+      "_id": "env_base",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Local Development",
+      "data": {
+        "base_url": "http://localhost:8001/api/v1",
+        "api_key_admin": "64wyVOJIQMPOLKTZ-mpULUw4wlwAz1dwizmy0KKQrEU",
+        "api_key_partner": "RSPz5CSKZ7oSAAiqXCOraADg3eJUvlm7S3MjCwJOuJ4"
+      },
+      "dataPropertyOrder": {
+        "&": ["base_url", "api_key_admin", "api_key_partner"]
+      },
+      "color": "#7d69cb",
+      "isPrivate": false,
+      "_type": "environment"
+    },
+    {
+      "_id": "fld_unternehmen",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Unternehmen",
+      "description": "Unternehmensdaten API",
+      "_type": "request_group"
+    },
+    {
+      "_id": "fld_geo",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Geodaten",
+      "description": "Geodaten API (Länder, Bundesländer, Kreise, Orte)",
+      "_type": "request_group"
+    },
+    {
+      "_id": "fld_etl",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "ETL",
+      "description": "ETL-System (Import-Konfiguration)",
+      "_type": "request_group"
+    },
+    {
+      "_id": "fld_admin",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Admin",
+      "description": "Partner-Verwaltung",
+      "_type": "request_group"
+    },
+    {
+      "_id": "fld_partner",
+      "parentId": "wrk_udo_api",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Partner API",
+      "description": "Eingeschränkte API für Partner",
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_unternehmen_list",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Liste aller Unternehmen",
+      "description": "Paginierte Liste aller Unternehmen",
+      "url": "{{ _.base_url }}/unternehmen",
+      "method": "GET",
+      "parameters": [
+        {"name": "limit", "value": "20", "disabled": false},
+        {"name": "skip", "value": "0", "disabled": true}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_unternehmen_search",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Suche nach Name",
+      "description": "Suche in Kurzname und Firmierung",
+      "url": "{{ _.base_url }}/unternehmen",
+      "method": "GET",
+      "parameters": [
+        {"name": "suche", "value": "Spielwaren", "disabled": false},
+        {"name": "limit", "value": "10", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_unternehmen_by_id",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Unternehmen nach UUID",
+      "description": "Einzelnes Unternehmen abrufen",
+      "url": "{{ _.base_url }}/unternehmen/UUID_HIER_EINSETZEN",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_unternehmen_legacy",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Unternehmen nach Legacy-ID",
+      "description": "Suche nach Original kStore ID",
+      "url": "{{ _.base_url }}/unternehmen/legacy/4361",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_unternehmen_count",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Anzahl Unternehmen",
+      "description": "Gesamtanzahl der Unternehmen",
+      "url": "{{ _.base_url }}/unternehmen/stats/count",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_unternehmen_by_ort",
+      "parentId": "fld_unternehmen",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Unternehmen nach Ort",
+      "description": "Filter nach geo_ort_id",
+      "url": "{{ _.base_url }}/unternehmen",
+      "method": "GET",
+      "parameters": [
+        {"name": "geo_ort_id", "value": "UUID_HIER_EINSETZEN", "disabled": false},
+        {"name": "limit", "value": "50", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_laender",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Alle Länder",
+      "description": "Liste aller Länder",
+      "url": "{{ _.base_url }}/geo/laender",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_land_code",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Land nach Code",
+      "description": "z.B. DE, AT, CH",
+      "url": "{{ _.base_url }}/geo/laender/code/DE",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_bundeslaender",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Alle Bundesländer",
+      "description": "Liste aller Bundesländer",
+      "url": "{{ _.base_url }}/geo/bundeslaender",
+      "method": "GET",
+      "parameters": [
+        {"name": "limit", "value": "100", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_bundesland_code",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Bundesland nach Code",
+      "description": "z.B. DE-BY, DE-NW, AT-4",
+      "url": "{{ _.base_url }}/geo/bundeslaender/code/DE-BY",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_kreise",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Alle Kreise",
+      "description": "Kreise/Landkreise",
+      "url": "{{ _.base_url }}/geo/kreise",
+      "method": "GET",
+      "parameters": [
+        {"name": "limit", "value": "50", "disabled": false},
+        {"name": "bundesland_id", "value": "", "disabled": true}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_orte",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Orte suchen",
+      "description": "Suche nach Ortsnamen",
+      "url": "{{ _.base_url }}/geo/orte",
+      "method": "GET",
+      "parameters": [
+        {"name": "suche", "value": "München", "disabled": false},
+        {"name": "limit", "value": "10", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_geo_orte_plz",
+      "parentId": "fld_geo",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Orte nach PLZ",
+      "description": "Suche nach Postleitzahl",
+      "url": "{{ _.base_url }}/geo/orte",
+      "method": "GET",
+      "parameters": [
+        {"name": "plz", "value": "80331", "disabled": false},
+        {"name": "limit", "value": "10", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_sources",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Alle ETL-Quellen",
+      "description": "Liste der Datenquellen",
+      "url": "{{ _.base_url }}/etl/sources",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_source_name",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "ETL-Quelle nach Name",
+      "description": "Toyware Legacy DB",
+      "url": "{{ _.base_url }}/etl/sources/name/toyware_mssql",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_table_mappings",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Table-Mappings",
+      "description": "Quell- zu Ziel-Tabellen",
+      "url": "{{ _.base_url }}/etl/table-mappings",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_field_mappings",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Field-Mappings",
+      "description": "Feld-zu-Feld Mappings",
+      "url": "{{ _.base_url }}/etl/field-mappings",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_import_logs",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Import-Historie",
+      "description": "Logs vergangener Imports",
+      "url": "{{ _.base_url }}/etl/import-logs",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_etl_transforms",
+      "parentId": "fld_etl",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Verfügbare Transformationen",
+      "description": "Liste aller Transformationen",
+      "url": "{{ _.base_url }}/etl/transforms",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_admin_partners",
+      "parentId": "fld_admin",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Alle Partner",
+      "description": "Liste aller API-Partner",
+      "url": "{{ _.base_url }}/admin/partners",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_admin_partner_create",
+      "parentId": "fld_admin",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Neuen Partner erstellen",
+      "description": "POST - Neuen Partner anlegen",
+      "url": "{{ _.base_url }}/admin/partners",
+      "method": "POST",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_admin }}"},
+        {"name": "Content-Type", "value": "application/json"}
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Neuer Partner\",\n  \"email\": \"partner@example.com\",\n  \"role\": \"partner\"\n}"
+      },
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_partner_laender",
+      "parentId": "fld_partner",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Länder (Partner)",
+      "description": "Partner-Zugriff auf Länder",
+      "url": "{{ _.base_url }}/partner/geodaten/laender",
+      "method": "GET",
+      "parameters": [],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_partner }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_partner_bundeslaender",
+      "parentId": "fld_partner",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Bundesländer (Partner)",
+      "description": "Partner-Zugriff auf Bundesländer",
+      "url": "{{ _.base_url }}/partner/geodaten/bundeslaender",
+      "method": "GET",
+      "parameters": [
+        {"name": "limit", "value": "50", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_partner }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_partner_kreise",
+      "parentId": "fld_partner",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Kreise (Partner)",
+      "description": "Partner-Zugriff auf Kreise",
+      "url": "{{ _.base_url }}/partner/geodaten/kreise",
+      "method": "GET",
+      "parameters": [
+        {"name": "limit", "value": "50", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_partner }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    },
+    {
+      "_id": "req_partner_orte",
+      "parentId": "fld_partner",
+      "modified": 1705075200000,
+      "created": 1705075200000,
+      "name": "Orte (Partner)",
+      "description": "Partner-Zugriff auf Orte",
+      "url": "{{ _.base_url }}/partner/geodaten/orte",
+      "method": "GET",
+      "parameters": [
+        {"name": "plz", "value": "80331", "disabled": false},
+        {"name": "limit", "value": "10", "disabled": false}
+      ],
+      "headers": [
+        {"name": "X-API-Key", "value": "{{ _.api_key_partner }}"}
+      ],
+      "body": {},
+      "authentication": {},
+      "_type": "request"
+    }
+  ]
+}
