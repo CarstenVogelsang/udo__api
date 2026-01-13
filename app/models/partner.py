@@ -7,7 +7,7 @@ Roles: "partner" (limited access) | "superadmin" (full access)
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, String, Float, Boolean, DateTime, Index
+from sqlalchemy import Column, String, Float, Boolean, DateTime, Index, JSON
 
 from app.models.geo import Base, UUID, generate_uuid
 
@@ -22,6 +22,8 @@ class ApiPartner(Base):
     email = Column(String(255), nullable=True)
     role = Column(String(20), nullable=False, default="partner")  # "partner" | "superadmin"
     kosten_geoapi_pro_einwohner = Column(Float, nullable=False, default=0.0001)  # Cost per inhabitant for GeoAPI queries
+    kosten_unternehmen_pro_abfrage = Column(Float, nullable=False, default=0.001)  # Cost per company query (0.1 Cent)
+    zugelassene_laender_ids = Column(JSON, nullable=True, default=list)  # List of allowed country UUIDs (empty = all)
     is_active = Column(Boolean, nullable=False, default=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

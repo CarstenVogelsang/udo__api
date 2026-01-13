@@ -18,8 +18,8 @@ from fastapi.routing import APIRoute
 # Tag-Konfiguration pro Rolle
 ROLE_TAGS = {
     "public": ["System"],
-    "partner": ["System", "Partner Geodaten"],
-    "superadmin": ["System", "Partner Geodaten", "Geodaten", "Admin"],
+    "partner": ["System", "Partner Geodaten", "Partner Unternehmen"],
+    "superadmin": ["System", "Partner Geodaten", "Partner Unternehmen", "Geodaten", "Unternehmen", "ETL", "Admin"],
 }
 
 

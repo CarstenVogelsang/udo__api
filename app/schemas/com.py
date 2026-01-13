@@ -52,26 +52,24 @@ class ComUnternehmenList(BaseModel):
     total: int
 
 
-# ============ Partner Schemas (Limited Fields) ============
+# ============ Partner Schemas (All Fields with Geo-Hierarchy) ============
 
-class ComUnternehmenPartner(BaseModel):
+class ComUnternehmenPartner(ComUnternehmenWithGeo):
     """
-    Limited company schema for partner access.
+    Company schema for partner access with full geo hierarchy.
 
-    Only includes fields safe for external partners.
+    Includes all fields plus: Ort → Kreis → Bundesland → Land
+    Partners can only see companies in their assigned countries.
     """
-    id: str
-    kurzname: str | None = None
-    firmierung: str | None = None
-    strasse: str | None = None
-    strasse_hausnr: str | None = None
-    # Limited geo info - only ort name, not full hierarchy
-    geo_ort_id: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)
+    legacy_id: int | None = None
 
 
 class ComUnternehmenPartnerList(BaseModel):
     """Paginated list of companies for partners."""
     items: list[ComUnternehmenPartner]
+    total: int
+
+
+class ComUnternehmenPartnerCount(BaseModel):
+    """Company count for partners (only companies they can access)."""
     total: int
