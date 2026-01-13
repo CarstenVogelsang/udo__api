@@ -19,6 +19,8 @@ class GeoLandBase(BaseModel):
     iso3: str | None = None
     kontinent: str | None = None
     ist_eu: bool | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +33,8 @@ class GeoBundeslandBase(BaseModel):
     kuerzel: str | None = None
     name: str
     einwohner: int | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,6 +45,8 @@ class GeoRegierungsbezirkBase(BaseModel):
     ags: str
     code: str
     name: str
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -56,6 +62,8 @@ class GeoKreisBase(BaseModel):
     ist_kreisfreie_stadt: bool | None = None
     autokennzeichen: str | None = None
     einwohner: int | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,6 +81,8 @@ class GeoOrtBase(BaseModel):
     lat: float | None = None
     lng: float | None = None
     einwohner: int | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -86,6 +96,8 @@ class GeoOrtsteilBase(BaseModel):
     lat: float | None = None
     lng: float | None = None
     einwohner: int | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

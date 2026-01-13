@@ -51,9 +51,12 @@ class GeoLand(Base):
     ist_eu = Column(Boolean, default=False)
     landesvorwahl = Column(String(20))
     legacy_id = Column(String(10))  # Original kLand_ISO from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Children
     bundeslaender = relationship(
         "GeoBundesland",
@@ -61,6 +64,16 @@ class GeoLand(Base):
         lazy="selectin",
         cascade="all, delete-orphan"
     )
+
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
 
     def __repr__(self):
         return f"<GeoLand {self.code}: {self.name}>"
@@ -79,9 +92,12 @@ class GeoBundesland(Base):
     einwohner_stand = Column(DateTime)
     land_id = Column(UUID, ForeignKey("geo_land.id"), nullable=False)
     legacy_id = Column(Integer)  # Original kBundesland from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Parent
     land = relationship("GeoLand", back_populates="bundeslaender", lazy="joined")
     # Children
@@ -102,6 +118,16 @@ class GeoBundesland(Base):
         Index("idx_bundesland_land", "land_id"),
     )
 
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
+
     def __repr__(self):
         return f"<GeoBundesland {self.code}: {self.name}>"
 
@@ -116,9 +142,12 @@ class GeoRegierungsbezirk(Base):
     name = Column(String(255), nullable=False)
     bundesland_id = Column(UUID, ForeignKey("geo_bundesland.id"), nullable=False)
     legacy_id = Column(Integer)  # Original kRegierungsbezirk from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Parent
     bundesland = relationship("GeoBundesland", back_populates="regierungsbezirke", lazy="joined")
     # Children
@@ -132,6 +161,16 @@ class GeoRegierungsbezirk(Base):
     __table_args__ = (
         Index("idx_regbez_bundesland", "bundesland_id"),
     )
+
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
 
     def __repr__(self):
         return f"<GeoRegierungsbezirk {self.code}: {self.name}>"
@@ -160,9 +199,12 @@ class GeoKreis(Base):
     bundesland_id = Column(UUID, ForeignKey("geo_bundesland.id"), nullable=False)
     regierungsbezirk_id = Column(UUID, ForeignKey("geo_regierungsbezirk.id"), nullable=True)  # Optional!
     legacy_id = Column(Integer)  # Original kKreis from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Parents
     bundesland = relationship("GeoBundesland", back_populates="kreise", lazy="joined")
     regierungsbezirk = relationship("GeoRegierungsbezirk", back_populates="kreise", lazy="joined")
@@ -179,6 +221,16 @@ class GeoKreis(Base):
         Index("idx_kreis_regbez", "regierungsbezirk_id"),
         Index("idx_kreis_autokennzeichen", "autokennzeichen"),
     )
+
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
 
     def __repr__(self):
         return f"<GeoKreis {self.code}: {self.name}>"
@@ -208,9 +260,12 @@ class GeoOrt(Base):
     website_url = Column(String(255))
     kreis_id = Column(UUID, ForeignKey("geo_kreis.id"), nullable=False)
     legacy_id = Column(Integer)  # Original kGeoOrt from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Parent
     kreis = relationship("GeoKreis", back_populates="orte", lazy="joined")
     # Children
@@ -226,6 +281,16 @@ class GeoOrt(Base):
         Index("idx_ort_plz", "plz"),
         Index("idx_ort_name", "name"),
     )
+
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
 
     def __repr__(self):
         return f"<GeoOrt {self.plz} {self.name}>"
@@ -246,15 +311,28 @@ class GeoOrtsteil(Base):
     beschreibung = Column(Text)
     ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=False)
     legacy_id = Column(Integer)  # Original kGeoOrtsteil from legacy DB
+    color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Color palette for theming
+    color_palette = relationship("BasColorPalette", lazy="joined")
     # Parent
     ort = relationship("GeoOrt", back_populates="ortsteile", lazy="joined")
 
     __table_args__ = (
         Index("idx_ortsteil_ort", "ort_id"),
     )
+
+    @property
+    def primary_color(self) -> str | None:
+        """Returns primary color from linked palette."""
+        return self.color_palette.primary if self.color_palette else None
+
+    @property
+    def secondary_color(self) -> str | None:
+        """Returns secondary color from linked palette."""
+        return self.color_palette.secondary if self.color_palette else None
 
     def __repr__(self):
         return f"<GeoOrtsteil {self.name}>"

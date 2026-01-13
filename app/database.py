@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import get_settings
 from app.models.geo import Base
 # Import all models to ensure they are registered with Base.metadata
+from app.models import base  # noqa: F401
 from app.models import etl  # noqa: F401
 from app.models import com  # noqa: F401
 
