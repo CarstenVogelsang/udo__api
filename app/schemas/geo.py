@@ -33,6 +33,7 @@ class GeoBundeslandBase(BaseModel):
     kuerzel: str | None = None
     name: str
     einwohner: int | None = None
+    icon: str | None = None
     primary_color: str | None = None
     secondary_color: str | None = None
 
@@ -198,6 +199,7 @@ class GeoBundeslandPartner(BaseModel):
     code: str
     kuerzel: str | None
     name: str
+    icon: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

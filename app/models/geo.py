@@ -93,6 +93,7 @@ class GeoBundesland(Base):
     land_id = Column(UUID, ForeignKey("geo_land.id"), nullable=False)
     legacy_id = Column(Integer)  # Original kBundesland from legacy DB
     color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
+    icon = Column(String(30), nullable=True, default='ti-map-pin')  # Tabler Icon class
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
