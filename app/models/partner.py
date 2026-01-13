@@ -18,8 +18,9 @@ class ApiPartner(Base):
 
     id = Column(UUID, primary_key=True, default=generate_uuid)
     api_key_hash = Column(String(64), unique=True, nullable=False, index=True)  # SHA-256 hash
+    password_hash = Column(String(128), nullable=True)  # bcrypt hash for JWT login
     name = Column(String(100), nullable=False)
-    email = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True, unique=True, index=True)  # Made unique for login
     role = Column(String(20), nullable=False, default="partner")  # "partner" | "superadmin"
     kosten_geoapi_pro_einwohner = Column(Float, nullable=False, default=0.0001)  # Cost per inhabitant for GeoAPI queries
     kosten_unternehmen_pro_abfrage = Column(Float, nullable=False, default=0.001)  # Cost per company query (0.1 Cent)

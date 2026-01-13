@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     api_version: str = "0.2.0"
     debug: bool = False
 
+    # JWT Authentication
+    jwt_secret_key: str = "dev-secret-key-change-in-production"  # Override in .env!
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+    jwt_refresh_token_expire_days: int = 7
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

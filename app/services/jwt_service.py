@@ -1,0 +1,129 @@
+"""
+JWT Authentication Service.
+
+Handles token creation, validation, and password hashing.
+Uses PyJWT for token handling and bcrypt for password hashing.
+"""
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import jwt
+import bcrypt
+
+from app.config import get_settings
+
+settings = get_settings()
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash."""
+    password_bytes = plain_password.encode('utf-8')
+    hash_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hash_bytes)
+
+
+def create_access_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None
+) -> str:
+    """
+    Create a JWT access token.
+
+    Args:
+        data: Payload data to encode in the token
+        expires_delta: Custom expiration time (default: 30 minutes)
+
+    Returns:
+        Encoded JWT token string
+    """
+    to_encode = data.copy()
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.jwt_access_token_expire_minutes
+        )
+
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "access"
+    })
+
+    return jwt.encode(
+        to_encode,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm
+    )
+
+
+def create_refresh_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None
+) -> str:
+    """
+    Create a JWT refresh token.
+
+    Args:
+        data: Payload data to encode in the token
+        expires_delta: Custom expiration time (default: 7 days)
+
+    Returns:
+        Encoded JWT refresh token string
+    """
+    to_encode = data.copy()
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=settings.jwt_refresh_token_expire_days
+        )
+
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "refresh"
+    })
+
+    return jwt.encode(
+        to_encode,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm
+    )
+
+
+def decode_token(token: str) -> dict[str, Any] | None:
+    """
+    Decode and validate a JWT token.
+
+    Args:
+        token: The JWT token string
+
+    Returns:
+        Decoded payload dict or None if invalid/expired
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm]
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+
+def verify_token_type(payload: dict[str, Any], expected_type: str) -> bool:
+    """Verify that the token is of the expected type (access or refresh)."""
+    return payload.get("type") == expected_type

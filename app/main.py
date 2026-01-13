@@ -16,6 +16,7 @@ from app.routes.partner_com import router as partner_com_router
 from app.routes.admin import router as admin_router
 from app.routes.etl import router as etl_router
 from app.routes.com import router as com_router
+from app.routes.auth import router as auth_router
 from app.openapi_docs import setup_docs
 
 settings = get_settings()
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     )
 
     # Register routers
+    app.include_router(auth_router, prefix=settings.api_prefix)  # Auth first (no auth required for login)
     app.include_router(geo_router, prefix=settings.api_prefix)
     app.include_router(partner_geo_router, prefix=settings.api_prefix)
     app.include_router(partner_com_router, prefix=settings.api_prefix)

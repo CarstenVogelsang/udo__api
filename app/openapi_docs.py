@@ -17,9 +17,9 @@ from fastapi.routing import APIRoute
 
 # Tag-Konfiguration pro Rolle
 ROLE_TAGS = {
-    "public": ["System"],
-    "partner": ["System", "Partner Geodaten", "Partner Unternehmen"],
-    "superadmin": ["System", "Partner Geodaten", "Partner Unternehmen", "Geodaten", "Unternehmen", "ETL", "Admin"],
+    "public": ["System", "Authentication"],  # Auth endpoints public (login doesn't need auth)
+    "partner": ["System", "Authentication", "Partner Geodaten", "Partner Unternehmen"],
+    "superadmin": ["System", "Authentication", "Partner Geodaten", "Partner Unternehmen", "Geodaten", "Unternehmen", "ETL", "Admin"],
 }
 
 
@@ -66,13 +66,23 @@ def get_filtered_openapi(
                 "type": "apiKey",
                 "in": "header",
                 "name": "X-API-Key",
-                "description": "API-Key für Authentifizierung. "
+                "description": "API-Key für programmatische API-Zugriffe. "
                                "Partner erhalten eingeschränkten Zugriff, "
                                "Superadmins haben Vollzugriff."
+            },
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "JWT Bearer Token für Web-UI-Zugriff. "
+                               "Erhalten über POST /api/v1/auth/login."
             }
         }
-        # Globale Security-Anforderung setzen
-        openapi_schema["security"] = [{"APIKeyHeader": []}]
+        # Globale Security-Anforderung setzen (entweder API-Key ODER Bearer)
+        openapi_schema["security"] = [
+            {"APIKeyHeader": []},
+            {"BearerAuth": []},
+        ]
 
     return openapi_schema
 
