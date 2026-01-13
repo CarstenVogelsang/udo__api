@@ -174,7 +174,7 @@ uv run fastapi run app/main.py --port 3000
 Umgebungsvariablen in `.env`:
 
 ```env
-SQLITE_DATABASE_URL=sqlite+aiosqlite:///./data/geo.db
+SQLITE_DATABASE_URL=sqlite+aiosqlite:///./data/udo.db
 API_PREFIX=/api/v1
 DEBUG=false
 ```

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Application Settings"""
 
     # SQLite (Development/Production)
-    sqlite_database_url: str = "sqlite+aiosqlite:///./data/geo.db"
+    sqlite_database_url: str = "sqlite+aiosqlite:///./data/udo.db"
 
     # Legacy MS SQL Server (READ-ONLY!)
     mssql_host: str = "192.168.91.22"

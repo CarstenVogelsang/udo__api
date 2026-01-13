@@ -20,7 +20,7 @@ def main():
     print("=" * 60)
 
     # Find database
-    db_path = Path(__file__).parent.parent / "data" / "geo.db"
+    db_path = Path(__file__).parent.parent / "data" / "udo.db"
     if not db_path.exists():
         print(f"Fehler: Datenbank nicht gefunden: {db_path}")
         return
