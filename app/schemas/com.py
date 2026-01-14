@@ -73,3 +73,59 @@ class ComUnternehmenPartnerList(BaseModel):
 class ComUnternehmenPartnerCount(BaseModel):
     """Company count for partners (only companies they can access)."""
     total: int
+
+
+# ============ Organisation Schemas ============
+
+class ComOrganisationBase(BaseModel):
+    """Base schema for ComOrganisation."""
+    id: str
+    legacy_id: int | None = None
+    kurzname: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComOrganisationSimple(ComOrganisationBase):
+    """Simple Organisation without nested relations (for embedding in Unternehmen)."""
+    pass
+
+
+class ComOrganisationDetail(ComOrganisationBase):
+    """Organisation with timestamps and member count."""
+    erstellt_am: datetime | None = None
+    aktualisiert_am: datetime | None = None
+
+
+class ComOrganisationWithUnternehmen(ComOrganisationDetail):
+    """Organisation with list of associated Unternehmen."""
+    unternehmen: list[ComUnternehmenBase] = []
+
+
+class ComOrganisationList(BaseModel):
+    """Paginated list of organisations."""
+    items: list[ComOrganisationBase]
+    total: int
+
+
+class ComOrganisationCreate(BaseModel):
+    """Schema for creating a new Organisation."""
+    kurzname: str
+    legacy_id: int | None = None
+
+
+class ComOrganisationUpdate(BaseModel):
+    """Schema for updating an Organisation (partial)."""
+    kurzname: str | None = None
+
+
+# ============ Extended Unternehmen Schemas with Organisationen ============
+
+class ComUnternehmenWithOrganisationen(ComUnternehmenWithGeo):
+    """Unternehmen with associated Organisationen."""
+    organisationen: list[ComOrganisationSimple] = []
+
+
+class ComUnternehmenDetailWithOrg(ComUnternehmenDetail):
+    """Unternehmen Detail with Organisationen."""
+    organisationen: list[ComOrganisationSimple] = []

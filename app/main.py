@@ -16,6 +16,7 @@ from app.routes.partner_com import router as partner_com_router
 from app.routes.admin import router as admin_router
 from app.routes.etl import router as etl_router
 from app.routes.com import router as com_router
+from app.routes.organisation import router as organisation_router
 from app.routes.auth import router as auth_router
 from app.openapi_docs import setup_docs
 
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix=settings.api_prefix)
     app.include_router(etl_router, prefix=settings.api_prefix)
     app.include_router(com_router, prefix=settings.api_prefix)
+    app.include_router(organisation_router, prefix=settings.api_prefix)
 
     # Setup custom role-based documentation
     setup_docs(app)
