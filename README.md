@@ -172,6 +172,46 @@ udo__api/
 └── .env                     # Umgebungsvariablen
 ```
 
+## Testen mit UDO_UI
+
+Die API kann mit dem UDO_UI Frontend getestet werden.
+
+### Voraussetzungen
+
+Beide Projekte müssen lokal vorhanden sein:
+- `udo__api` - FastAPI Backend (dieses Repository)
+- `udo__ui` - Flask Frontend ([GitHub](https://github.com/CarstenVogelsang/udo__ui))
+
+### Beide Server starten
+
+```bash
+# Terminal 1: API Backend starten
+cd udo__api
+uv run fastapi dev app/main.py --port 8001
+
+# Terminal 2: UI Frontend starten
+cd udo__ui
+FLASK_APP=udo_ui:app uv run flask run --port 5050
+```
+
+### Im Browser testen
+
+1. Öffne http://localhost:5050
+2. Login mit den Test-Zugangsdaten:
+
+| Feld | Wert |
+|------|------|
+| E-Mail | `test@example.com` |
+| Passwort | `testpassword123` |
+
+3. Nach dem Login kannst du die API-Funktionen über die UI testen
+
+### Troubleshooting
+
+- **API nicht erreichbar**: Prüfe ob Port 8001 läuft (`curl http://localhost:8001/health`)
+- **Login fehlgeschlagen**: Prüfe ob der Test-User in der DB existiert
+- **CORS-Fehler**: Die API erlaubt alle Origins in der Entwicklung
+
 ## Dokumentation
 
 Ausführliche Dokumentation findet sich in `docs/prd/`:
