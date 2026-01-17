@@ -129,3 +129,96 @@ class ComUnternehmenWithOrganisationen(ComUnternehmenWithGeo):
 class ComUnternehmenDetailWithOrg(ComUnternehmenDetail):
     """Unternehmen Detail with Organisationen."""
     organisationen: list[ComOrganisationSimple] = []
+
+
+# ============ Kontakt Schemas ============
+
+class ComKontaktBase(BaseModel):
+    """Base schema for ComKontakt."""
+    id: str
+    typ: str | None = None
+    titel: str | None = None
+    anrede: str | None = None
+    vorname: str
+    nachname: str
+    position: str | None = None
+    abteilung: str | None = None
+    telefon: str | None = None
+    mobil: str | None = None
+    fax: str | None = None
+    email: str | None = None
+    notizen: str | None = None
+    ist_hauptkontakt: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComKontaktDetail(ComKontaktBase):
+    """Kontakt with all fields including timestamps."""
+    legacy_id: int | None = None
+    unternehmen_id: str
+    erstellt_am: datetime | None = None
+    aktualisiert_am: datetime | None = None
+
+
+class ComKontaktList(BaseModel):
+    """Paginated list of contacts."""
+    items: list[ComKontaktBase]
+    total: int
+
+
+class ComKontaktCreate(BaseModel):
+    """Schema for creating a new Kontakt."""
+    typ: str | None = None
+    titel: str | None = None
+    anrede: str | None = None
+    vorname: str
+    nachname: str
+    position: str | None = None
+    abteilung: str | None = None
+    telefon: str | None = None
+    mobil: str | None = None
+    fax: str | None = None
+    email: str | None = None
+    notizen: str | None = None
+    ist_hauptkontakt: bool = False
+    legacy_id: int | None = None
+
+
+class ComKontaktUpdate(BaseModel):
+    """Schema for updating a Kontakt (partial)."""
+    typ: str | None = None
+    titel: str | None = None
+    anrede: str | None = None
+    vorname: str | None = None
+    nachname: str | None = None
+    position: str | None = None
+    abteilung: str | None = None
+    telefon: str | None = None
+    mobil: str | None = None
+    fax: str | None = None
+    email: str | None = None
+    notizen: str | None = None
+    ist_hauptkontakt: bool | None = None
+
+
+# ============ Unternehmen Create/Update Schemas ============
+
+class ComUnternehmenCreate(BaseModel):
+    """Schema for creating a new Unternehmen."""
+    kurzname: str
+    firmierung: str | None = None
+    strasse: str | None = None
+    strasse_hausnr: str | None = None
+    geo_ort_id: str | None = None
+    legacy_id: int | None = None
+
+
+class ComUnternehmenUpdate(BaseModel):
+    """Schema for updating an Unternehmen (partial)."""
+    kurzname: str | None = None
+    firmierung: str | None = None
+    strasse: str | None = None
+    strasse_hausnr: str | None = None
+    geo_ort_id: str | None = None
+    status_datum: datetime | None = None

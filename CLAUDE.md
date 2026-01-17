@@ -67,6 +67,26 @@ uv run python scripts/analyze_legacy_db.py
 uv run python scripts/migrate_data.py
 ```
 
+### Schema-Migrationen (Alembic)
+
+⚠️ **WICHTIG für Claude:** Bei Model-Änderungen in `app/models/` automatisch Alembic-Migrationen ausführen:
+
+```bash
+# 1. Nach Model-Änderung: Migration generieren
+uv run alembic revision --autogenerate -m "Beschreibung der Änderung"
+
+# 2. Migration ausführen
+uv run alembic upgrade head
+```
+
+Hilfreiche Befehle:
+
+```bash
+uv run alembic current   # Aktuellen Stand anzeigen
+uv run alembic history   # Migrations-Historie
+uv run alembic downgrade -1  # Letzte Migration rückgängig
+```
+
 ## Dokumentation
 
 - PRD-Dateien: `docs/prd/`

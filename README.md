@@ -2,6 +2,43 @@
 
 FastAPI Backend für den Unternehmensdaten SaaS-Service.
 
+---
+
+## Schnellstart (TL;DR)
+
+> **Wichtig**: Dieses Projekt verwendet **uv** als Package Manager. Es gibt kein virtuelles Environment zum Aktivieren - stattdessen wird `uv run` vor jeden Befehl gesetzt!
+
+```bash
+# 1. Ins Projektverzeichnis wechseln
+cd udo__api
+
+# 2. Dependencies installieren (nur beim ersten Mal oder nach Änderungen)
+uv sync
+
+# 3. API-Server starten
+uv run fastapi dev app/main.py --port 8001
+```
+
+**API erreichbar unter:** http://localhost:8001
+**Swagger-Dokumentation:** http://localhost:8001/docs/admin
+
+### Beide Projekte starten (API + UI)
+
+```bash
+# Terminal 1: API Backend
+cd udo__api
+uv run fastapi dev app/main.py --port 8001
+
+# Terminal 2: UI Frontend
+cd udo__ui
+uv run flask run --port 5050
+```
+
+**UI erreichbar unter:** http://localhost:5050
+**Login:** `test@example.com` / `testpassword123`
+
+---
+
 ## Einrichtung
 
 Dieses Projekt verwendet **uv** als Package Manager.

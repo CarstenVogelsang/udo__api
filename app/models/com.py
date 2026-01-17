@@ -7,12 +7,14 @@ Table prefix: com_ (analog zu geo_ für Geodaten)
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
     String,
     Integer,
     DateTime,
     ForeignKey,
     Index,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -140,6 +142,14 @@ class ComUnternehmen(Base):
         """Returns list of associated Organisationen."""
         return [z.organisation for z in self.organisation_zuordnungen]
 
+    # Relationship to Kontakte
+    kontakte = relationship(
+        "ComKontakt",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         Index("idx_unternehmen_geo_ort", "geo_ort_id"),
         Index("idx_unternehmen_kurzname", "kurzname"),
@@ -148,3 +158,56 @@ class ComUnternehmen(Base):
 
     def __repr__(self):
         return f"<ComUnternehmen {self.kurzname or self.firmierung}>"
+
+
+class ComKontakt(Base):
+    """
+    Contact person for a company.
+
+    Each contact belongs to exactly one company (1:N relationship).
+    A company can have multiple contacts, with one optionally marked as primary.
+    """
+    __tablename__ = "com_kontakt"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    legacy_id = Column(Integer, unique=True, index=True, nullable=True)  # For future legacy sync
+
+    # Contact type and title
+    typ = Column(String(50))  # "Geschäftsführer", "Einkauf", "Vertrieb", etc.
+    titel = Column(String(20))  # "Dr.", "Prof.", etc.
+    anrede = Column(String(20))  # "Herr", "Frau", "Divers"
+
+    # Name (required)
+    vorname = Column(String(100), nullable=False)
+    nachname = Column(String(100), nullable=False)
+
+    # Position in company
+    position = Column(String(255))  # Job title
+    abteilung = Column(String(100))  # Department
+
+    # Contact details
+    telefon = Column(String(50))  # Landline
+    mobil = Column(String(50))  # Mobile
+    fax = Column(String(50))  # Fax
+    email = Column(String(255), index=True)  # Not unique - same email can exist multiple times
+
+    # Additional info
+    notizen = Column(Text)  # Free text notes
+    ist_hauptkontakt = Column(Boolean, default=False)  # Primary contact flag
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship back to Unternehmen
+    unternehmen = relationship("ComUnternehmen", back_populates="kontakte")
+
+    __table_args__ = (
+        Index("idx_kontakt_unternehmen", "unternehmen_id"),
+        Index("idx_kontakt_email", "email"),
+        Index("idx_kontakt_legacy", "legacy_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComKontakt {self.vorname} {self.nachname}>"

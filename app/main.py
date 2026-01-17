@@ -18,6 +18,10 @@ from app.routes.etl import router as etl_router
 from app.routes.com import router as com_router
 from app.routes.organisation import router as organisation_router
 from app.routes.auth import router as auth_router
+from app.routes.plugin import router as plugin_router
+from app.routes.projekt import router as projekt_router
+from app.routes.lizenz import admin_router as lizenz_admin_router
+from app.routes.lizenz import check_router as lizenz_check_router
 from app.openapi_docs import setup_docs
 
 settings = get_settings()
@@ -67,6 +71,11 @@ def create_app() -> FastAPI:
     app.include_router(etl_router, prefix=settings.api_prefix)
     app.include_router(com_router, prefix=settings.api_prefix)
     app.include_router(organisation_router, prefix=settings.api_prefix)
+    # Plugin Marketplace routers
+    app.include_router(plugin_router, prefix=settings.api_prefix)
+    app.include_router(projekt_router, prefix=settings.api_prefix)
+    app.include_router(lizenz_admin_router, prefix=settings.api_prefix)
+    app.include_router(lizenz_check_router, prefix=settings.api_prefix)
 
     # Setup custom role-based documentation
     setup_docs(app)

@@ -152,3 +152,98 @@ class ComService:
             skip=skip,
             limit=limit
         )
+
+    async def create_unternehmen(
+        self,
+        kurzname: str,
+        firmierung: str | None = None,
+        strasse: str | None = None,
+        strasse_hausnr: str | None = None,
+        geo_ort_id: str | None = None,
+        legacy_id: int | None = None,
+    ) -> ComUnternehmen:
+        """
+        Create a new company.
+
+        Args:
+            kurzname: Short name (required)
+            firmierung: Full company name
+            strasse: Street name
+            strasse_hausnr: House number
+            geo_ort_id: UUID of GeoOrt
+            legacy_id: Optional legacy ID for migration
+
+        Returns:
+            Created ComUnternehmen instance
+        """
+        unternehmen = ComUnternehmen(
+            kurzname=kurzname,
+            firmierung=firmierung,
+            strasse=strasse,
+            strasse_hausnr=strasse_hausnr,
+            geo_ort_id=geo_ort_id,
+            legacy_id=legacy_id,
+        )
+        self.db.add(unternehmen)
+        await self.db.commit()
+        await self.db.refresh(unternehmen)
+
+        # Reload with full geo hierarchy
+        return await self.get_unternehmen_by_id(str(unternehmen.id))
+
+    async def update_unternehmen(
+        self,
+        unternehmen_id: str,
+        **kwargs
+    ) -> ComUnternehmen | None:
+        """
+        Update an existing company.
+
+        Args:
+            unternehmen_id: UUID of the company
+            **kwargs: Fields to update
+
+        Returns:
+            Updated ComUnternehmen or None if not found
+        """
+        # First get the unternehmen without eager loading
+        query = select(ComUnternehmen).where(ComUnternehmen.id == unternehmen_id)
+        result = await self.db.execute(query)
+        unternehmen = result.scalar_one_or_none()
+
+        if not unternehmen:
+            return None
+
+        # Update fields
+        for key, value in kwargs.items():
+            if value is not None and hasattr(unternehmen, key):
+                setattr(unternehmen, key, value)
+
+        await self.db.commit()
+        await self.db.refresh(unternehmen)
+
+        # Reload with full geo hierarchy
+        return await self.get_unternehmen_by_id(unternehmen_id)
+
+    async def delete_unternehmen(self, unternehmen_id: str) -> bool:
+        """
+        Delete a company.
+
+        Also deletes all associated contacts and organisation assignments.
+
+        Args:
+            unternehmen_id: UUID of the company
+
+        Returns:
+            True if deleted, False if not found
+        """
+        query = select(ComUnternehmen).where(ComUnternehmen.id == unternehmen_id)
+        result = await self.db.execute(query)
+        unternehmen = result.scalar_one_or_none()
+
+        if not unternehmen:
+            return False
+
+        await self.db.delete(unternehmen)
+        await self.db.commit()
+        return True

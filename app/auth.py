@@ -72,23 +72,6 @@ async def get_current_partner(
     return partner
 
 
-async def require_superadmin(
-    partner: ApiPartner = Depends(get_current_partner)
-) -> ApiPartner:
-    """
-    Requires the authenticated partner to have superadmin role.
-
-    Raises:
-        HTTPException 403: If partner is not a superadmin
-    """
-    if partner.role != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Superadmin-Berechtigung erforderlich.",
-        )
-    return partner
-
-
 # === JWT Authentication ===
 
 async def get_partner_by_email(db: AsyncSession, email: str) -> ApiPartner | None:
@@ -212,3 +195,23 @@ async def get_current_partner_flexible(
         detail="Authentifizierung erforderlich. Bitte X-API-Key Header oder Bearer Token setzen.",
         headers={"WWW-Authenticate": "Bearer, ApiKey"},
     )
+
+
+# === Role-based Access Control ===
+
+async def require_superadmin(
+    partner: ApiPartner = Depends(get_current_partner_flexible)
+) -> ApiPartner:
+    """
+    Requires the authenticated partner to have superadmin role.
+    Accepts both API-Key and JWT Bearer token.
+
+    Raises:
+        HTTPException 403: If partner is not a superadmin
+    """
+    if partner.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superadmin-Berechtigung erforderlich.",
+        )
+    return partner
