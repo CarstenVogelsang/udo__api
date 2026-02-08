@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
-from app.auth import get_current_partner
+from app.auth import get_current_partner_with_billing
 from app.models.partner import ApiPartner
 from app.models.geo import GeoLand, GeoBundesland, GeoKreis, GeoOrt
 from app.services.usage import UsageService
+from app.services.billing import BillingService
 from app.schemas.geo import (
     GeoLandPartner,
     GeoBundeslandPartner,
@@ -41,7 +42,7 @@ def round_to_thousand(value: int | None) -> int | None:
 )
 async def list_laender(
     ist_eu: bool | None = Query(None, description="Filter: nur EU-Länder (true) oder Nicht-EU (false)"),
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all countries (limited fields for partners)."""
@@ -77,7 +78,7 @@ async def list_laender(
 )
 async def list_bundeslaender(
     land_code: str = Query(..., description="Land-Code, z.B. 'DE' für Deutschland"),
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """Get federal states for a country (limited fields for partners)."""
@@ -127,7 +128,7 @@ async def list_bundeslaender(
 )
 async def list_kreise(
     bundesland_code: str = Query(..., description="Bundesland-Code, z.B. 'DE-BY' für Bayern"),
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -179,7 +180,7 @@ async def list_kreise(
 
     # Log usage with calculated costs
     usage_service = UsageService(db)
-    await usage_service.log_usage(
+    usage = await usage_service.log_usage(
         partner_id=partner.id,
         endpoint="/partner/geodaten/kreise",
         methode="GET",
@@ -188,6 +189,15 @@ async def list_kreise(
         kosten=gesamt_kosten,
         antwortzeit_ms=int((time.monotonic() - t_start) * 1000),
         parameter={"bundesland_code": bundesland_code},
+    )
+
+    # Deduct credits for Kreise (only geo endpoint with costs)
+    billing_service = BillingService(db)
+    await billing_service.deduct_credits(
+        partner_id=partner.id,
+        kosten=gesamt_kosten,
+        usage_id=str(usage.id),
+        beschreibung=f"{len(items)} Kreise abgerufen ({bundesland_code})",
     )
 
     return items
@@ -201,7 +211,7 @@ async def list_kreise(
 )
 async def list_orte(
     kreis_code: str = Query(..., description="Kreis-Code, z.B. 'DE-BY-09162-1234'"),
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """Get cities/municipalities for a county (limited fields for partners)."""

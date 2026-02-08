@@ -25,6 +25,11 @@ from app.models.usage import (
     ApiUsage,
     ApiUsageDaily,
 )
+from app.models.billing import (
+    ApiBillingAccount,
+    ApiCreditTransaction,
+    ApiInvoice,
+)
 from app.models.plugin import (
     PlgKategorie,
     PlgPlugin,
@@ -65,6 +70,10 @@ __all__ = [
     # Usage Tracking
     "ApiUsage",
     "ApiUsageDaily",
+    # Billing
+    "ApiBillingAccount",
+    "ApiCreditTransaction",
+    "ApiInvoice",
     # Plugin/Marketplace Models
     "PlgKategorie",
     "PlgPlugin",

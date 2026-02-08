@@ -70,6 +70,8 @@ class UsageMeta(BaseModel):
     kosten_heute: float
     kosten_monat: float
     abrufe_heute: int
+    guthaben_cents: int = 0
+    billing_typ: str = "internal"
 
 
 class ComUnternehmenPartnerList(BaseModel):

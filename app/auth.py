@@ -4,6 +4,9 @@ Authentication module for API-Key and JWT based access control.
 Supports two authentication methods:
 1. API-Key: Passed via X-API-Key header (for programmatic API access)
 2. JWT Bearer Token: Passed via Authorization header (for web UI access)
+
+Billing-aware dependency: get_current_partner_with_billing()
+checks billing access (credits/invoice/internal) before allowing API calls.
 """
 import hashlib
 
@@ -195,6 +198,26 @@ async def get_current_partner_flexible(
         detail="Authentifizierung erforderlich. Bitte X-API-Key Header oder Bearer Token setzen.",
         headers={"WWW-Authenticate": "Bearer, ApiKey"},
     )
+
+
+# === Billing Access Control ===
+
+async def get_current_partner_with_billing(
+    partner: ApiPartner = Depends(get_current_partner),
+    db: AsyncSession = Depends(get_db),
+) -> ApiPartner:
+    """
+    Validates API key AND checks billing access.
+
+    Raises 402 Payment Required if:
+    - Partner is manually blocked (ist_gesperrt)
+    - Credits billing: balance <= 0
+    - Invoice billing: monthly limit reached
+    """
+    from app.services.billing import BillingService
+    billing_service = BillingService(db)
+    await billing_service.check_billing_access(partner.id)
+    return partner
 
 
 # === Role-based Access Control ===

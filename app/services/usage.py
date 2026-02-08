@@ -81,11 +81,18 @@ class UsageService:
         )
         monat_kosten = monat_stats.scalar() or 0.0
 
+        # Billing info
+        from app.services.billing import BillingService
+        billing = BillingService(self.db)
+        account = await billing.get_or_create_account(partner_id)
+
         return {
             "kosten_abruf": round(kosten_abruf, 6),
             "kosten_heute": round(float(heute_row.kosten) + kosten_abruf, 6),
             "kosten_monat": round(float(monat_kosten) + kosten_abruf, 6),
             "abrufe_heute": int(heute_row.anzahl) + 1,  # +1 for current request
+            "guthaben_cents": account.guthaben_cents,
+            "billing_typ": account.billing_typ,
         }
 
     async def get_partner_usage_aktuell(self, partner_id: str) -> dict:

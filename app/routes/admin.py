@@ -14,6 +14,7 @@ from app.auth import require_superadmin
 from app.models.partner import ApiPartner
 from app.services.partner import PartnerService
 from app.services.usage import UsageService
+from app.services.billing import BillingService
 from app.schemas.partner import (
     ApiPartnerCreate,
     ApiPartnerUpdate,
@@ -24,6 +25,13 @@ from app.schemas.partner import (
 from app.schemas.usage import (
     UsageAdminUebersichtList,
     UsageAdminPartnerDetail,
+)
+from app.schemas.billing import (
+    BillingAccountAdmin,
+    CreditTopupRequest,
+    CreditTransactionResponse,
+    SperrenRequest,
+    InvoiceList,
 )
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -239,3 +247,121 @@ async def get_partner_usage(
         )
 
     return result
+
+
+# ============ Billing Management ============
+
+@router.get(
+    "/billing/partner/{partner_id}",
+    response_model=BillingAccountAdmin,
+    summary="Billing-Account eines Partners",
+    description="Zeigt den Billing-Account eines Partners inkl. Guthaben und Sperrung.",
+)
+async def get_partner_billing(
+    partner_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get billing account for a partner (superadmin only)."""
+    service = BillingService(db)
+    account = await service.get_or_create_account(partner_id)
+    return account
+
+
+@router.post(
+    "/billing/partner/{partner_id}/aufladen",
+    response_model=CreditTransactionResponse,
+    summary="Credits aufladen",
+    description="Lädt das Guthaben eines Partners auf (in Cent).",
+)
+async def topup_credits(
+    partner_id: str,
+    data: CreditTopupRequest,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Top up credits for a partner (superadmin only)."""
+    service = BillingService(db)
+
+    # Verify partner exists
+    partner_service = PartnerService(db)
+    partner = await partner_service.get_partner_by_id(partner_id)
+    if not partner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Partner mit ID '{partner_id}' nicht gefunden.",
+        )
+
+    transaction = await service.topup_credits(
+        partner_id=partner_id,
+        betrag_cents=data.betrag_cents,
+        beschreibung=data.beschreibung,
+        erstellt_von=f"admin:{admin.name}",
+    )
+    return transaction
+
+
+@router.post(
+    "/billing/partner/{partner_id}/sperren",
+    response_model=BillingAccountAdmin,
+    summary="Partner-Zugang sperren",
+    description="Sperrt den API-Zugang eines Partners.",
+)
+async def sperren_partner(
+    partner_id: str,
+    data: SperrenRequest,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Block a partner's API access (superadmin only)."""
+    service = BillingService(db)
+    account = await service.sperren(partner_id, data.grund)
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Partner mit ID '{partner_id}' nicht gefunden.",
+        )
+
+    return account
+
+
+@router.post(
+    "/billing/partner/{partner_id}/entsperren",
+    response_model=BillingAccountAdmin,
+    summary="Partner-Zugang entsperren",
+    description="Hebt die Sperrung eines Partners auf.",
+)
+async def entsperren_partner(
+    partner_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Unblock a partner's API access (superadmin only)."""
+    service = BillingService(db)
+    account = await service.entsperren(partner_id)
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Partner mit ID '{partner_id}' nicht gefunden.",
+        )
+
+    return account
+
+
+@router.get(
+    "/billing/rechnungen",
+    response_model=InvoiceList,
+    summary="Alle Rechnungen",
+    description="Zeigt alle Rechnungen aller Partner.",
+)
+async def list_rechnungen(
+    skip: int = Query(0, ge=0, description="Pagination Offset"),
+    limit: int = Query(50, ge=1, le=500, description="Max. Anzahl"),
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all invoices (superadmin only)."""
+    service = BillingService(db)
+    return await service.get_rechnungen(skip=skip, limit=limit)

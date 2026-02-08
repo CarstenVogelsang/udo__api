@@ -10,10 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_partner
+from app.auth import get_current_partner_with_billing
 from app.models.partner import ApiPartner
 from app.services.partner_com import PartnerComService
 from app.services.usage import UsageService
+from app.services.billing import BillingService
 from app.schemas.com import (
     ComUnternehmenPartner,
     ComUnternehmenPartnerList,
@@ -38,7 +39,7 @@ async def list_unternehmen(
     geo_ort_id: str | None = Query(None, description="Filter nach Ort-UUID"),
     skip: int = Query(0, ge=0, description="Pagination Offset"),
     limit: int = Query(100, ge=1, le=1000, description="Max. Anzahl (1-1000)"),
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -63,7 +64,7 @@ async def list_unternehmen(
     antwortzeit_ms = int((time.monotonic() - t_start) * 1000)
 
     usage_service = UsageService(db)
-    await usage_service.log_usage(
+    usage = await usage_service.log_usage(
         partner_id=partner.id,
         endpoint="/partner/unternehmen/",
         methode="GET",
@@ -72,6 +73,15 @@ async def list_unternehmen(
         kosten=kosten,
         antwortzeit_ms=antwortzeit_ms,
         parameter={"suche": suche, "geo_ort_id": geo_ort_id, "skip": skip, "limit": limit},
+    )
+
+    # Deduct credits
+    billing_service = BillingService(db)
+    await billing_service.deduct_credits(
+        partner_id=partner.id,
+        kosten=kosten,
+        usage_id=str(usage.id),
+        beschreibung=f"{anzahl} Unternehmen abgerufen",
     )
 
     result["meta"] = await usage_service.get_usage_meta(partner.id, kosten)
@@ -85,7 +95,7 @@ async def list_unternehmen(
     description="Gibt die Gesamtzahl der für den Partner verfügbaren Unternehmen zurück.",
 )
 async def get_unternehmen_count(
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -106,7 +116,7 @@ async def get_unternehmen_count(
 )
 async def get_unternehmen(
     id: str,
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_billing),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -130,7 +140,7 @@ async def get_unternehmen(
     antwortzeit_ms = int((time.monotonic() - t_start) * 1000)
 
     usage_service = UsageService(db)
-    await usage_service.log_usage(
+    usage = await usage_service.log_usage(
         partner_id=partner.id,
         endpoint=f"/partner/unternehmen/{id}",
         methode="GET",
@@ -138,6 +148,15 @@ async def get_unternehmen(
         anzahl_ergebnisse=1,
         kosten=kosten,
         antwortzeit_ms=antwortzeit_ms,
+    )
+
+    # Deduct credits
+    billing_service = BillingService(db)
+    await billing_service.deduct_credits(
+        partner_id=partner.id,
+        kosten=kosten,
+        usage_id=str(usage.id),
+        beschreibung="1 Unternehmen abgerufen",
     )
 
     return unternehmen
