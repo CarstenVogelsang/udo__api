@@ -4,6 +4,8 @@ Partner Company (Unternehmen) API routes.
 Filtered company access based on partner's assigned countries.
 Endpoint prefix: /partner/unternehmen
 """
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +13,7 @@ from app.database import get_db
 from app.auth import get_current_partner
 from app.models.partner import ApiPartner
 from app.services.partner_com import PartnerComService
+from app.services.usage import UsageService
 from app.schemas.com import (
     ComUnternehmenPartner,
     ComUnternehmenPartnerList,
@@ -44,6 +47,8 @@ async def list_unternehmen(
     Partners can only see companies in countries assigned to them.
     If no countries are assigned, all companies are visible.
     """
+    t_start = time.monotonic()
+
     service = PartnerComService(db, partner)
     result = await service.get_unternehmen_list(
         geo_ort_id=geo_ort_id,
@@ -51,6 +56,25 @@ async def list_unternehmen(
         skip=skip,
         limit=limit
     )
+
+    # Calculate costs and log usage
+    anzahl = len(result["items"])
+    kosten = anzahl * partner.kosten_unternehmen_pro_abfrage
+    antwortzeit_ms = int((time.monotonic() - t_start) * 1000)
+
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint="/partner/unternehmen/",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=anzahl,
+        kosten=kosten,
+        antwortzeit_ms=antwortzeit_ms,
+        parameter={"suche": suche, "geo_ort_id": geo_ort_id, "skip": skip, "limit": limit},
+    )
+
+    result["meta"] = await usage_service.get_usage_meta(partner.id, kosten)
     return result
 
 
@@ -90,6 +114,8 @@ async def get_unternehmen(
 
     Returns 404 if company doesn't exist or is not in partner's allowed countries.
     """
+    t_start = time.monotonic()
+
     service = PartnerComService(db, partner)
     unternehmen = await service.get_unternehmen_by_id(id)
 
@@ -98,5 +124,20 @@ async def get_unternehmen(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Unternehmen nicht gefunden oder nicht im zugelassenen Bereich."
         )
+
+    # Log usage (single result = 1)
+    kosten = partner.kosten_unternehmen_pro_abfrage
+    antwortzeit_ms = int((time.monotonic() - t_start) * 1000)
+
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint=f"/partner/unternehmen/{id}",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=1,
+        kosten=kosten,
+        antwortzeit_ms=antwortzeit_ms,
+    )
 
     return unternehmen

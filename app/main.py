@@ -20,6 +20,7 @@ from app.routes.organisation import router as organisation_router
 from app.routes.auth import router as auth_router
 from app.routes.plugin import router as plugin_router
 from app.routes.projekt import router as projekt_router
+from app.routes.partner_usage import router as partner_usage_router
 from app.routes.lizenz import admin_router as lizenz_admin_router
 from app.routes.lizenz import check_router as lizenz_check_router
 from app.openapi_docs import setup_docs
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(geo_router, prefix=settings.api_prefix)
     app.include_router(partner_geo_router, prefix=settings.api_prefix)
     app.include_router(partner_com_router, prefix=settings.api_prefix)
+    app.include_router(partner_usage_router, prefix=settings.api_prefix)
     app.include_router(admin_router, prefix=settings.api_prefix)
     app.include_router(etl_router, prefix=settings.api_prefix)
     app.include_router(com_router, prefix=settings.api_prefix)

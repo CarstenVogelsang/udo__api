@@ -64,10 +64,19 @@ class ComUnternehmenPartner(ComUnternehmenWithGeo):
     legacy_id: int | None = None
 
 
+class UsageMeta(BaseModel):
+    """Usage metadata attached to partner API responses."""
+    kosten_abruf: float
+    kosten_heute: float
+    kosten_monat: float
+    abrufe_heute: int
+
+
 class ComUnternehmenPartnerList(BaseModel):
-    """Paginated list of companies for partners."""
+    """Paginated list of companies for partners (with usage metadata)."""
     items: list[ComUnternehmenPartner]
     total: int
+    meta: UsageMeta | None = None
 
 
 class ComUnternehmenPartnerCount(BaseModel):

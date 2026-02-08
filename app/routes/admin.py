@@ -1,9 +1,11 @@
 """
-Admin API routes for partner management.
+Admin API routes for partner management and usage monitoring.
 
 Only accessible by superadmin users.
 Endpoint prefix: /admin
 """
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,12 +13,17 @@ from app.database import get_db
 from app.auth import require_superadmin
 from app.models.partner import ApiPartner
 from app.services.partner import PartnerService
+from app.services.usage import UsageService
 from app.schemas.partner import (
     ApiPartnerCreate,
     ApiPartnerUpdate,
     ApiPartnerResponse,
     ApiPartnerWithKey,
     ApiPartnerList,
+)
+from app.schemas.usage import (
+    UsageAdminUebersichtList,
+    UsageAdminPartnerDetail,
 )
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -187,3 +194,48 @@ async def regenerate_api_key(
         aktualisiert_am=partner.aktualisiert_am,
         api_key=api_key,
     )
+
+
+# ============ Usage Monitoring ============
+
+@router.get(
+    "/usage/uebersicht",
+    response_model=UsageAdminUebersichtList,
+    summary="Usage-Übersicht aller Partner",
+    description="Zeigt die API-Nutzung aller aktiven Partner (heute + aktueller Monat).",
+)
+async def get_usage_uebersicht(
+    skip: int = Query(0, ge=0, description="Pagination Offset"),
+    limit: int = Query(100, ge=1, le=1000, description="Max. Anzahl"),
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get usage overview for all partners (superadmin only)."""
+    service = UsageService(db)
+    return await service.get_admin_usage_uebersicht(skip=skip, limit=limit)
+
+
+@router.get(
+    "/usage/partner/{partner_id}",
+    response_model=UsageAdminPartnerDetail,
+    summary="Usage eines Partners",
+    description="Zeigt die detaillierte API-Nutzung eines bestimmten Partners.",
+)
+async def get_partner_usage(
+    partner_id: str,
+    von: date | None = Query(None, description="Startdatum (YYYY-MM-DD)"),
+    bis: date | None = Query(None, description="Enddatum (YYYY-MM-DD)"),
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get detailed usage for a specific partner (superadmin only)."""
+    service = UsageService(db)
+    result = await service.get_admin_partner_usage(partner_id, von=von, bis=bis)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Partner mit ID '{partner_id}' nicht gefunden.",
+        )
+
+    return result

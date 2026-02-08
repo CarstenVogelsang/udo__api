@@ -4,6 +4,8 @@ Partner Geodata API routes.
 Limited geodata access for authenticated partners.
 Endpoint prefix: /partner/geodaten
 """
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,7 @@ from app.database import get_db
 from app.auth import get_current_partner
 from app.models.partner import ApiPartner
 from app.models.geo import GeoLand, GeoBundesland, GeoKreis, GeoOrt
+from app.services.usage import UsageService
 from app.schemas.geo import (
     GeoLandPartner,
     GeoBundeslandPartner,
@@ -42,11 +45,27 @@ async def list_laender(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all countries (limited fields for partners)."""
+    t_start = time.monotonic()
+
     query = select(GeoLand).order_by(GeoLand.name)
     if ist_eu is not None:
         query = query.where(GeoLand.ist_eu == ist_eu)
     result = await db.execute(query)
     items = result.scalars().all()
+
+    # Log usage (Länder are free)
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint="/partner/geodaten/laender",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=len(items),
+        kosten=0.0,
+        antwortzeit_ms=int((time.monotonic() - t_start) * 1000),
+        parameter={"ist_eu": ist_eu},
+    )
+
     return items
 
 
@@ -62,6 +81,8 @@ async def list_bundeslaender(
     db: AsyncSession = Depends(get_db),
 ):
     """Get federal states for a country (limited fields for partners)."""
+    t_start = time.monotonic()
+
     # Find the land by code
     land_query = select(GeoLand).where(GeoLand.code == land_code.upper())
     land_result = await db.execute(land_query)
@@ -81,6 +102,20 @@ async def list_bundeslaender(
     )
     result = await db.execute(query)
     items = result.scalars().all()
+
+    # Log usage (Bundesländer are free)
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint="/partner/geodaten/bundeslaender",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=len(items),
+        kosten=0.0,
+        antwortzeit_ms=int((time.monotonic() - t_start) * 1000),
+        parameter={"land_code": land_code},
+    )
+
     return items
 
 
@@ -101,6 +136,8 @@ async def list_kreise(
     Einwohner is rounded to 1000.
     Abrufkosten = Einwohner x Partner.kosten_geoapi_pro_einwohner
     """
+    t_start = time.monotonic()
+
     # Find the bundesland by code
     bl_query = select(GeoBundesland).where(GeoBundesland.code == bundesland_code.upper())
     bl_result = await db.execute(bl_query)
@@ -123,9 +160,11 @@ async def list_kreise(
 
     # Transform to public schema with calculated fields
     items = []
+    gesamt_kosten = 0.0
     for kreis in kreise:
         einwohner_rounded = round_to_thousand(kreis.einwohner)
         abrufkosten = (einwohner_rounded or 0) * partner.kosten_geoapi_pro_einwohner
+        gesamt_kosten += abrufkosten
 
         items.append(GeoKreisPartner(
             id=kreis.id,
@@ -137,6 +176,19 @@ async def list_kreise(
             einwohner=einwohner_rounded,
             abrufkosten=abrufkosten,
         ))
+
+    # Log usage with calculated costs
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint="/partner/geodaten/kreise",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=len(items),
+        kosten=gesamt_kosten,
+        antwortzeit_ms=int((time.monotonic() - t_start) * 1000),
+        parameter={"bundesland_code": bundesland_code},
+    )
 
     return items
 
@@ -153,6 +205,8 @@ async def list_orte(
     db: AsyncSession = Depends(get_db),
 ):
     """Get cities/municipalities for a county (limited fields for partners)."""
+    t_start = time.monotonic()
+
     # Find the kreis by code
     kreis_query = select(GeoKreis).where(GeoKreis.code == kreis_code)
     kreis_result = await db.execute(kreis_query)
@@ -187,5 +241,18 @@ async def list_orte(
         )
         for ort in orte
     ]
+
+    # Log usage (Orte are free)
+    usage_service = UsageService(db)
+    await usage_service.log_usage(
+        partner_id=partner.id,
+        endpoint="/partner/geodaten/orte",
+        methode="GET",
+        status_code=200,
+        anzahl_ergebnisse=len(items),
+        kosten=0.0,
+        antwortzeit_ms=int((time.monotonic() - t_start) * 1000),
+        parameter={"kreis_code": kreis_code},
+    )
 
     return items

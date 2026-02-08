@@ -21,6 +21,10 @@ from app.models.com import (
     ComUnternehmenOrganisation,
     ComKontakt,
 )
+from app.models.usage import (
+    ApiUsage,
+    ApiUsageDaily,
+)
 from app.models.plugin import (
     PlgKategorie,
     PlgPlugin,
@@ -58,6 +62,9 @@ __all__ = [
     "ComOrganisation",
     "ComUnternehmenOrganisation",
     "ComKontakt",
+    # Usage Tracking
+    "ApiUsage",
+    "ApiUsageDaily",
     # Plugin/Marketplace Models
     "PlgKategorie",
     "PlgPlugin",
