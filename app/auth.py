@@ -200,19 +200,39 @@ async def get_current_partner_flexible(
     )
 
 
+# === Rate Limiting ===
+
+async def get_current_partner_with_rate_limit(
+    partner: ApiPartner = Depends(get_current_partner),
+) -> ApiPartner:
+    """
+    Validates API key AND checks rate limits (in-memory, no DB).
+
+    Raises 429 Too Many Requests if any window limit is exceeded.
+    """
+    from app.middleware.rate_limit import rate_limiter
+    rate_limiter.check_and_increment(
+        partner_id=partner.id,
+        limits={
+            "minute": partner.rate_limit_pro_minute,
+            "hour": partner.rate_limit_pro_stunde,
+            "day": partner.rate_limit_pro_tag,
+        },
+    )
+    return partner
+
+
 # === Billing Access Control ===
 
 async def get_current_partner_with_billing(
-    partner: ApiPartner = Depends(get_current_partner),
+    partner: ApiPartner = Depends(get_current_partner_with_rate_limit),
     db: AsyncSession = Depends(get_db),
 ) -> ApiPartner:
     """
-    Validates API key AND checks billing access.
+    Validates API key, checks rate limits, AND checks billing access.
 
-    Raises 402 Payment Required if:
-    - Partner is manually blocked (ist_gesperrt)
-    - Credits billing: balance <= 0
-    - Invoice billing: monthly limit reached
+    Chain: Auth → Rate Limit → Billing
+    Raises 429 if rate limited, 402 if billing blocked.
     """
     from app.services.billing import BillingService
     billing_service = BillingService(db)

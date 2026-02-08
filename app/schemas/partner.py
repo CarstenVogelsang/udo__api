@@ -15,6 +15,9 @@ class ApiPartnerCreate(BaseModel):
     kosten_geoapi_pro_einwohner: float = Field(0.0001, ge=0, description="Cost per inhabitant for GeoAPI queries")
     kosten_unternehmen_pro_abfrage: float = Field(0.001, ge=0, description="Cost per company query")
     zugelassene_laender_ids: list[str] | None = Field(None, description="Allowed country UUIDs (empty/null = all)")
+    rate_limit_pro_minute: int = Field(60, ge=0, description="Max requests per minute (0 = unlimited)")
+    rate_limit_pro_stunde: int = Field(1000, ge=0, description="Max requests per hour (0 = unlimited)")
+    rate_limit_pro_tag: int = Field(10000, ge=0, description="Max requests per day (0 = unlimited)")
 
 
 class ApiPartnerUpdate(BaseModel):
@@ -25,6 +28,9 @@ class ApiPartnerUpdate(BaseModel):
     kosten_geoapi_pro_einwohner: float | None = Field(None, ge=0)
     kosten_unternehmen_pro_abfrage: float | None = Field(None, ge=0)
     zugelassene_laender_ids: list[str] | None = None
+    rate_limit_pro_minute: int | None = Field(None, ge=0)
+    rate_limit_pro_stunde: int | None = Field(None, ge=0)
+    rate_limit_pro_tag: int | None = Field(None, ge=0)
     is_active: bool | None = None
 
 
@@ -37,6 +43,9 @@ class ApiPartnerResponse(BaseModel):
     kosten_geoapi_pro_einwohner: float
     kosten_unternehmen_pro_abfrage: float
     zugelassene_laender_ids: list[str] | None
+    rate_limit_pro_minute: int
+    rate_limit_pro_stunde: int
+    rate_limit_pro_tag: int
     is_active: bool
     erstellt_am: datetime | None
     aktualisiert_am: datetime | None
