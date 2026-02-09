@@ -20,7 +20,8 @@ class ComService:
         geo_ort_id: str | None = None,
         suche: str | None = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        filter_conditions: list | None = None,
     ) -> dict:
         """
         Get companies with full geo hierarchy.
@@ -59,6 +60,9 @@ class ComService:
                     ComUnternehmen.firmierung.ilike(search_pattern),
                 )
             )
+        if filter_conditions:
+            for condition in filter_conditions:
+                base_query = base_query.where(condition)
 
         # Count query
         count_query = select(func.count(ComUnternehmen.id))
@@ -72,6 +76,9 @@ class ComService:
                     ComUnternehmen.firmierung.ilike(search_pattern),
                 )
             )
+        if filter_conditions:
+            for condition in filter_conditions:
+                count_query = count_query.where(condition)
         total = (await self.db.execute(count_query)).scalar()
 
         # Data query

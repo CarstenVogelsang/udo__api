@@ -13,6 +13,7 @@ from app.models.geo import Base
 from app.models import base  # noqa: F401
 from app.models import etl  # noqa: F401
 from app.models import com  # noqa: F401
+from app.models import smart_filter  # noqa: F401
 
 settings = get_settings()
 

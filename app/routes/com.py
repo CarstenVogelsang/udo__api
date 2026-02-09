@@ -12,6 +12,8 @@ from app.auth import require_superadmin
 from app.models.partner import ApiPartner
 from app.services.com import ComService
 from app.services.kontakt import KontaktService
+from app.services.smart_filter import SmartFilterService
+from app.services.smart_filter_parser import parse_unternehmen_filter, SmartFilterError
 from app.schemas.com import (
     ComUnternehmenWithGeo,
     ComUnternehmenDetail,
@@ -38,6 +40,7 @@ async def list_unternehmen(
         min_length=2,
         description="Suche nach Kurzname oder Firmierung"
     ),
+    smart_filter_id: str | None = Query(None, description="Gespeicherten Smart Filter anwenden"),
     skip: int = Query(0, ge=0, description="Anzahl zu überspringender Einträge"),
     limit: int = Query(100, ge=1, le=1000, description="Maximale Anzahl Einträge"),
 ):
@@ -47,17 +50,32 @@ async def list_unternehmen(
     **Filter:**
     - `geo_ort_id`: Nur Unternehmen aus diesem Ort
     - `suche`: Textsuche in Kurzname und Firmierung
+    - `smart_filter_id`: Gespeicherten Smart Filter anwenden (kombinierbar mit suche/geo_ort_id)
 
     **Response:**
     Jedes Unternehmen enthält die vollständige Geo-Hierarchie:
     Ort → Kreis → Bundesland → Land
     """
+    filter_conditions = None
+
+    if smart_filter_id:
+        filter_service = SmartFilterService(db)
+        smart_filter = await filter_service.get_filter_by_id(smart_filter_id)
+        if not smart_filter:
+            raise HTTPException(status_code=404, detail="Smart Filter nicht gefunden")
+        try:
+            condition = parse_unternehmen_filter(smart_filter.dsl_expression)
+            filter_conditions = [condition]
+        except SmartFilterError as e:
+            raise HTTPException(status_code=400, detail=f"Smart Filter DSL error: {e}")
+
     service = ComService(db)
     return await service.get_unternehmen_list(
         geo_ort_id=geo_ort_id,
         suche=suche,
         skip=skip,
-        limit=limit
+        limit=limit,
+        filter_conditions=filter_conditions,
     )
 
 
