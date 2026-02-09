@@ -12,6 +12,7 @@ class SmartFilterCreate(BaseModel):
     beschreibung: str | None = Field(None, description="Optional description")
     entity_type: str = Field("unternehmen", description="Target entity type")
     dsl_expression: str = Field(..., min_length=1, description="Filter DSL expression")
+    is_active: bool = Field(True, description="Whether filter is active")
 
 
 class SmartFilterUpdate(BaseModel):
@@ -19,6 +20,7 @@ class SmartFilterUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     beschreibung: str | None = None
     dsl_expression: str | None = Field(None, min_length=1)
+    is_active: bool | None = None
 
 
 class SmartFilterResponse(BaseModel):
@@ -28,6 +30,7 @@ class SmartFilterResponse(BaseModel):
     beschreibung: str | None
     entity_type: str
     dsl_expression: str
+    is_active: bool
     erstellt_am: datetime | None
     aktualisiert_am: datetime | None
 

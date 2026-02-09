@@ -6,7 +6,7 @@ to entity list queries (e.g. Unternehmen, Kontakte).
 """
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, Index
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Index
 
 from app.models.geo import Base, UUID, generate_uuid
 
@@ -26,6 +26,7 @@ class SmartFilter(Base):
     beschreibung = Column(Text)
     entity_type = Column(String(50), nullable=False, default="unternehmen")
     dsl_expression = Column(Text, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

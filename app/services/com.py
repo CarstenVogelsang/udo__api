@@ -81,6 +81,24 @@ class ComService:
                 count_query = count_query.where(condition)
         total = (await self.db.execute(count_query)).scalar()
 
+        # Unfiltered total (when smart filter is active, also count without filter)
+        total_unfiltered = total
+        if filter_conditions:
+            unfiltered_count_query = select(func.count(ComUnternehmen.id))
+            if geo_ort_id:
+                unfiltered_count_query = unfiltered_count_query.where(
+                    ComUnternehmen.geo_ort_id == geo_ort_id
+                )
+            if suche:
+                search_pattern = f"%{suche}%"
+                unfiltered_count_query = unfiltered_count_query.where(
+                    or_(
+                        ComUnternehmen.kurzname.ilike(search_pattern),
+                        ComUnternehmen.firmierung.ilike(search_pattern),
+                    )
+                )
+            total_unfiltered = (await self.db.execute(unfiltered_count_query)).scalar()
+
         # Data query
         query = (
             base_query
@@ -92,7 +110,7 @@ class ComService:
         # .unique() because joinedload can create duplicates
         items = result.scalars().unique().all()
 
-        return {"items": items, "total": total}
+        return {"items": items, "total": total, "total_unfiltered": total_unfiltered}
 
     async def get_unternehmen_by_id(self, unternehmen_id: str) -> ComUnternehmen | None:
         """

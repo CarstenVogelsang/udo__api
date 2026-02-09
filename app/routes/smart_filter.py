@@ -62,12 +62,15 @@ async def list_filters(
     admin: ApiPartner = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
     entity_type: str | None = Query(None, description="Filter by entity type"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
 ):
-    """List all smart filters, optionally filtered by entity type."""
+    """List all smart filters, optionally filtered by entity type and status."""
     service = SmartFilterService(db)
-    return await service.get_filters(entity_type=entity_type, skip=skip, limit=limit)
+    return await service.get_filters(
+        entity_type=entity_type, is_active=is_active, skip=skip, limit=limit,
+    )
 
 
 @router.post("", response_model=SmartFilterResponse, status_code=status.HTTP_201_CREATED)
@@ -147,6 +150,20 @@ async def delete_filter(
     deleted = await service.delete_filter(filter_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Smart Filter nicht gefunden")
+
+
+@router.post("/{filter_id}/copy", response_model=SmartFilterResponse, status_code=status.HTTP_201_CREATED)
+async def copy_filter(
+    filter_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a copy of an existing smart filter."""
+    service = SmartFilterService(db)
+    copy = await service.copy_filter(filter_id)
+    if not copy:
+        raise HTTPException(status_code=404, detail="Smart Filter nicht gefunden")
+    return copy
 
 
 # ── Validation Endpoint ──────────────────────────────────────────────────

@@ -50,6 +50,7 @@ class ComUnternehmenList(BaseModel):
     """Paginated list of companies."""
     items: list[ComUnternehmenWithGeo]
     total: int
+    total_unfiltered: int | None = None
 
 
 # ============ Partner Schemas (All Fields with Geo-Hierarchy) ============

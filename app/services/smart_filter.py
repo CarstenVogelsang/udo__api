@@ -17,16 +17,21 @@ class SmartFilterService:
     async def get_filters(
         self,
         entity_type: str | None = None,
+        is_active: bool | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> dict:
-        """Get all smart filters, optionally filtered by entity type."""
+        """Get all smart filters, optionally filtered by entity type and status."""
         count_query = select(func.count(SmartFilter.id))
         base_query = select(SmartFilter)
 
         if entity_type:
             count_query = count_query.where(SmartFilter.entity_type == entity_type)
             base_query = base_query.where(SmartFilter.entity_type == entity_type)
+
+        if is_active is not None:
+            count_query = count_query.where(SmartFilter.is_active == is_active)
+            base_query = base_query.where(SmartFilter.is_active == is_active)
 
         total = (await self.db.execute(count_query)).scalar()
 
@@ -49,11 +54,30 @@ class SmartFilterService:
             beschreibung=data.beschreibung,
             entity_type=data.entity_type,
             dsl_expression=data.dsl_expression,
+            is_active=data.is_active,
         )
         self.db.add(smart_filter)
         await self.db.commit()
         await self.db.refresh(smart_filter)
         return smart_filter
+
+    async def copy_filter(self, filter_id: str) -> SmartFilter | None:
+        """Create a copy of an existing smart filter."""
+        original = await self.get_filter_by_id(filter_id)
+        if not original:
+            return None
+
+        copy = SmartFilter(
+            name=f"{original.name} (Kopie)",
+            beschreibung=original.beschreibung,
+            entity_type=original.entity_type,
+            dsl_expression=original.dsl_expression,
+            is_active=original.is_active,
+        )
+        self.db.add(copy)
+        await self.db.commit()
+        await self.db.refresh(copy)
+        return copy
 
     async def update_filter(
         self,
