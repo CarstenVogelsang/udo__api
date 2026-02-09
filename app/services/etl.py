@@ -6,6 +6,7 @@ Provides:
 - Transformation registry for field transformations
 - Import logic with FK lookups
 """
+import re
 from datetime import datetime
 from typing import Any, Callable
 
@@ -79,6 +80,76 @@ def _to_str(value: Any) -> str | None:
     return str(value)
 
 
+# ============ Excel Import Transformations ============
+
+def _split_street_name(value: Any) -> Any:
+    """Extract street name: 'Glender Weg 6' -> 'Glender Weg'."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    match = re.match(r'^(.+?)\s+(\d+\s*\w?)$', value.strip())
+    return match.group(1).strip() if match else value.strip()
+
+
+def _split_street_hausnr(value: Any) -> Any:
+    """Extract house number: 'Glender Weg 6' -> '6'."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    match = re.match(r'^(.+?)\s+(\d+\s*\w?)$', value.strip())
+    return match.group(2).strip() if match else None
+
+
+def _normalize_phone(value: Any) -> Any:
+    """Normalize phone: '+49 (0)9574 65464-0' -> '095746546400'."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    phone = value.strip()
+    phone = re.sub(r'^\+49\s*', '0', phone)
+    phone = re.sub(r'^0049\s*', '0', phone)
+    phone = re.sub(r'[^\d]', '', phone)
+    return phone if phone else value
+
+
+def _normalize_plz(value: Any) -> Any:
+    """Pad German PLZ to 5 digits: 1234 -> '01234'."""
+    if value is None:
+        return None
+    plz_str = str(value).strip()
+    plz_str = re.sub(r'[^\d]', '', plz_str)
+    if not plz_str:
+        return None
+    return plz_str.zfill(5)
+
+
+def _normalize_url(value: Any) -> Any:
+    """Normalize URL: 'https://www.hoellein.com/' -> 'hoellein.com'."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    url = value.strip().lower()
+    url = re.sub(r'^https?://', '', url)
+    url = re.sub(r'^www\.', '', url)
+    url = url.rstrip('/')
+    return url
+
+
+def _normalize_email(value: Any) -> Any:
+    """Normalize email: trim + lowercase."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    return value.strip().lower()
+
+
+def _extract_anrede(value: Any) -> Any:
+    """Extract Anrede: 'Sehr geehrter Herr' -> 'Herr'."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    val = value.strip()
+    if 'Herr' in val:
+        return 'Herr'
+    if 'Frau' in val:
+        return 'Frau'
+    return val
+
+
 # Registry of available transformations
 TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "trim": _trim,
@@ -87,6 +158,13 @@ TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "to_int": _to_int,
     "to_float": _to_float,
     "to_str": _to_str,
+    "split_street_name": _split_street_name,
+    "split_street_hausnr": _split_street_hausnr,
+    "normalize_phone": _normalize_phone,
+    "normalize_plz": _normalize_plz,
+    "normalize_url": _normalize_url,
+    "normalize_email": _normalize_email,
+    "extract_anrede": _extract_anrede,
 }
 
 

@@ -121,6 +121,9 @@ class ComUnternehmen(Base):
     firmierung = Column(String(255))  # cFirmierung
     strasse = Column(String(255))  # cStrasse
     strasse_hausnr = Column(String(50))  # cStrasseHausNr
+    website = Column(String(255))
+    email = Column(String(255), index=True)
+    telefon = Column(String(50))
     geo_ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=True)  # kGeoOrt → GeoOrt
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -213,3 +216,34 @@ class ComKontakt(Base):
 
     def __repr__(self):
         return f"<ComKontakt {self.vorname} {self.nachname}>"
+
+
+class ComExternalId(Base):
+    """
+    External identifiers for companies and contacts.
+
+    Allows multiple IDs from different source systems per entity.
+    Examples: smartmail subscriber_id=39, evendo kundennr=12345
+    """
+    __tablename__ = "com_external_id"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    entity_type = Column(String(50), nullable=False)      # "unternehmen", "kontakt"
+    entity_id = Column(UUID, nullable=False)
+    source_name = Column(String(100), nullable=False)      # "smartmail", "evendo"
+    id_type = Column(String(100), nullable=False)          # "subscriber_id", "kundennr"
+    external_value = Column(String(255), nullable=False)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_extid_entity", "entity_type", "entity_id"),
+        Index("idx_extid_lookup", "source_name", "id_type", "external_value"),
+        Index(
+            "uq_external_id",
+            "entity_type", "entity_id", "source_name", "id_type",
+            unique=True,
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ComExternalId {self.source_name}:{self.id_type}={self.external_value}>"

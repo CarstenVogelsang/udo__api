@@ -19,6 +19,9 @@ class ComUnternehmenBase(BaseModel):
     firmierung: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
+    website: str | None = None
+    email: str | None = None
+    telefon: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -223,6 +226,9 @@ class ComUnternehmenCreate(BaseModel):
     firmierung: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
+    website: str | None = None
+    email: str | None = None
+    telefon: str | None = None
     geo_ort_id: str | None = None
     legacy_id: int | None = None
 
@@ -233,6 +239,9 @@ class ComUnternehmenUpdate(BaseModel):
     firmierung: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
+    website: str | None = None
+    email: str | None = None
+    telefon: str | None = None
     geo_ort_id: str | None = None
     status_datum: datetime | None = None
 

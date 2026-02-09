@@ -108,6 +108,7 @@ class EtlFieldMappingBase(BaseModel):
     transform: str | None = Field(None, max_length=100)
     is_required: bool = False
     default_value: str | None = Field(None, max_length=255)
+    update_rule: str = Field("always", max_length=20)  # "always", "if_empty", "never"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -124,6 +125,7 @@ class EtlFieldMappingUpdate(BaseModel):
     transform: str | None = Field(None, max_length=100)
     is_required: bool | None = None
     default_value: str | None = Field(None, max_length=255)
+    update_rule: str | None = Field(None, max_length=20)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -145,6 +147,8 @@ class EtlImportLogBase(BaseModel):
     records_created: int = 0
     records_updated: int = 0
     records_failed: int = 0
+    records_skipped: int = 0
+    batch_id: str | None = None
     error_message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -185,7 +189,7 @@ class EtlFieldMappingList(BaseModel):
 
 class EtlImportLogList(BaseModel):
     """Paginated list of EtlImportLogs."""
-    items: list[EtlImportLogResponse]
+    items: list[EtlImportLogWithMapping]
     total: int
 
 
@@ -207,6 +211,31 @@ class EtlImportResult(BaseModel):
     records_updated: int = 0
     records_failed: int = 0
     error_message: str | None = None
+
+
+# ============ Excel Import Schemas ============
+
+class ExcelImportResult(BaseModel):
+    """Result of an Excel import run."""
+    batch_id: str
+    rows_read: int = 0
+    unternehmen_created: int = 0
+    unternehmen_updated: int = 0
+    unternehmen_skipped: int = 0
+    kontakte_created: int = 0
+    kontakte_updated: int = 0
+    kontakte_skipped: int = 0
+    errors: int = 0
+    error_details: list[str] = []
+    dry_run: bool = False
+
+
+class ExcelSourcePreview(BaseModel):
+    """Preview of configured column mappings for an Excel import source."""
+    source_name: str
+    description: str | None = None
+    unternehmen_mappings: list[EtlFieldMappingResponse] = []
+    kontakt_mappings: list[EtlFieldMappingResponse] = []
 
 
 # Forward reference updates

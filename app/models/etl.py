@@ -116,6 +116,7 @@ class EtlFieldMapping(Base):
     transform = Column(String(100))  # e.g., "trim", "fk_lookup:geo_ort.legacy_id"
     is_required = Column(Boolean, default=False)
     default_value = Column(String(255))
+    update_rule = Column(String(20), default="always")  # "always", "if_empty", "never"
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -146,6 +147,8 @@ class EtlImportLog(Base):
     records_created = Column(Integer, default=0)
     records_updated = Column(Integer, default=0)
     records_failed = Column(Integer, default=0)
+    records_skipped = Column(Integer, default=0)
+    batch_id = Column(String(36), index=True)  # Groups logs from one import run
     error_message = Column(Text)
 
     # Parent
