@@ -77,17 +77,8 @@ async def create_partner(
     partner, api_key = await service.create_partner(data)
 
     # Return partner with the plain API key (only this once!)
-    return ApiPartnerWithKey(
-        id=partner.id,
-        name=partner.name,
-        email=partner.email,
-        role=partner.role,
-        kosten_geoapi_pro_einwohner=partner.kosten_geoapi_pro_einwohner,
-        is_active=partner.is_active,
-        erstellt_am=partner.erstellt_am,
-        aktualisiert_am=partner.aktualisiert_am,
-        api_key=api_key,
-    )
+    response = ApiPartnerResponse.model_validate(partner)
+    return ApiPartnerWithKey(**response.model_dump(), api_key=api_key)
 
 
 @router.get(
@@ -191,17 +182,8 @@ async def regenerate_api_key(
 
     partner, api_key = result
 
-    return ApiPartnerWithKey(
-        id=partner.id,
-        name=partner.name,
-        email=partner.email,
-        role=partner.role,
-        kosten_geoapi_pro_einwohner=partner.kosten_geoapi_pro_einwohner,
-        is_active=partner.is_active,
-        erstellt_am=partner.erstellt_am,
-        aktualisiert_am=partner.aktualisiert_am,
-        api_key=api_key,
-    )
+    response = ApiPartnerResponse.model_validate(partner)
+    return ApiPartnerWithKey(**response.model_dump(), api_key=api_key)
 
 
 # ============ Usage Monitoring ============
