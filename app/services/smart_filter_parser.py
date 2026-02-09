@@ -423,6 +423,7 @@ def get_unternehmen_field_map():
         "strasse": ComUnternehmen.strasse,
         "strasse_hausnr": ComUnternehmen.strasse_hausnr,
         "geo_ort_id": ComUnternehmen.geo_ort_id,
+        "geloescht_am": ComUnternehmen.geloescht_am,
     }
 
 

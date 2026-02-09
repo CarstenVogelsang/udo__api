@@ -124,6 +124,7 @@ class ComUnternehmen(Base):
     geo_ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=True)  # kGeoOrt → GeoOrt
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    geloescht_am = Column(DateTime, nullable=True)  # Soft delete timestamp
 
     # Relationship to GeoOrt - provides full geo hierarchy
     # Using lazy="joined" for eager loading in single query
@@ -199,6 +200,7 @@ class ComKontakt(Base):
     # Timestamps
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    geloescht_am = Column(DateTime, nullable=True)  # Soft delete (cascaded from Unternehmen)
 
     # Relationship back to Unternehmen
     unternehmen = relationship("ComUnternehmen", back_populates="kontakte")

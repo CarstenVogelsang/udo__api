@@ -242,6 +242,21 @@ async def get_current_partner_with_billing(
 
 # === Role-based Access Control ===
 
+async def require_admin(
+    partner: ApiPartner = Depends(get_current_partner_flexible)
+) -> ApiPartner:
+    """
+    Requires the authenticated partner to have admin or superadmin role.
+    Accepts both API-Key and JWT Bearer token.
+    """
+    if partner.role not in ("admin", "superadmin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin-Berechtigung erforderlich.",
+        )
+    return partner
+
+
 async def require_superadmin(
     partner: ApiPartner = Depends(get_current_partner_flexible)
 ) -> ApiPartner:

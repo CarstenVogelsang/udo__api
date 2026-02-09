@@ -32,6 +32,7 @@ class ComUnternehmenWithGeo(ComUnternehmenBase):
     Includes: Ort → Kreis → Bundesland → Land
     """
     geo_ort: GeoOrtWithParents | None = None
+    geloescht_am: datetime | None = None
 
 
 # ============ Detail Schemas ============
@@ -234,3 +235,16 @@ class ComUnternehmenUpdate(BaseModel):
     strasse_hausnr: str | None = None
     geo_ort_id: str | None = None
     status_datum: datetime | None = None
+
+
+# ============ Bulk Action Schemas ============
+
+class BulkActionRequest(BaseModel):
+    """Request for bulk actions on Unternehmen."""
+    ids: list[str]
+
+
+class BulkActionResponse(BaseModel):
+    """Response for bulk actions."""
+    erfolg: int
+    fehler: int

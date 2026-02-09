@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import require_superadmin
+from app.auth import require_admin, require_superadmin
 from app.models.partner import ApiPartner
 from app.services.com import ComService
 from app.services.kontakt import KontaktService
@@ -25,6 +25,8 @@ from app.schemas.com import (
     ComKontaktList,
     ComKontaktCreate,
     ComKontaktUpdate,
+    BulkActionRequest,
+    BulkActionResponse,
 )
 
 router = APIRouter(prefix="/unternehmen", tags=["Unternehmen"])
@@ -43,6 +45,7 @@ async def list_unternehmen(
     smart_filter_id: str | None = Query(None, description="Gespeicherten Smart Filter anwenden"),
     skip: int = Query(0, ge=0, description="Anzahl zu überspringender Einträge"),
     limit: int = Query(100, ge=1, le=1000, description="Maximale Anzahl Einträge"),
+    include_deleted: bool = Query(False, description="Gelöschte Unternehmen mit anzeigen"),
 ):
     """
     Liste aller Unternehmen mit vollständiger Geo-Hierarchie (nur Superadmin).
@@ -51,6 +54,7 @@ async def list_unternehmen(
     - `geo_ort_id`: Nur Unternehmen aus diesem Ort
     - `suche`: Textsuche in Kurzname und Firmierung
     - `smart_filter_id`: Gespeicherten Smart Filter anwenden (kombinierbar mit suche/geo_ort_id)
+    - `include_deleted`: Auch soft-gelöschte Unternehmen anzeigen
 
     **Response:**
     Jedes Unternehmen enthält die vollständige Geo-Hierarchie:
@@ -76,7 +80,95 @@ async def list_unternehmen(
         skip=skip,
         limit=limit,
         filter_conditions=filter_conditions,
+        include_deleted=include_deleted,
     )
+
+
+# ============ Bulk Endpoints (MUST be before /{unternehmen_id}) ============
+
+
+@router.post("/bulk/soft-delete", response_model=BulkActionResponse)
+async def bulk_soft_delete(
+    data: BulkActionRequest,
+    admin: ApiPartner = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mehrere Unternehmen soft-löschen (Admin+).
+
+    Setzt `geloescht_am` Zeitstempel. Kaskadiert zu allen Kontakten.
+    Kann mit Restore rückgängig gemacht werden.
+    """
+    service = ComService(db)
+    return await service.bulk_soft_delete(data.ids)
+
+
+@router.post("/bulk/restore", response_model=BulkActionResponse)
+async def bulk_restore(
+    data: BulkActionRequest,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mehrere soft-gelöschte Unternehmen wiederherstellen (nur Superadmin).
+
+    Entfernt `geloescht_am` Zeitstempel. Kaskadiert zu allen Kontakten.
+    """
+    service = ComService(db)
+    return await service.bulk_restore(data.ids)
+
+
+@router.post("/bulk/hard-delete", response_model=BulkActionResponse)
+async def bulk_hard_delete(
+    data: BulkActionRequest,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mehrere Unternehmen endgültig löschen (nur Superadmin).
+
+    **ACHTUNG:** Unwiderruflich! Löscht auch alle zugehörigen Kontakte
+    und Organisations-Zuordnungen.
+    """
+    service = ComService(db)
+    return await service.bulk_hard_delete(data.ids)
+
+
+# ============ Soft-Delete / Restore Einzeln ============
+
+
+@router.post("/{unternehmen_id}/soft-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def soft_delete_unternehmen(
+    unternehmen_id: str,
+    admin: ApiPartner = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Einzelnes Unternehmen soft-löschen (Admin+).
+
+    Setzt `geloescht_am` Zeitstempel. Kaskadiert zu Kontakten.
+    """
+    service = ComService(db)
+    deleted = await service.soft_delete_unternehmen(unternehmen_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Unternehmen nicht gefunden")
+
+
+@router.post("/{unternehmen_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_unternehmen(
+    unternehmen_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Soft-gelöschtes Unternehmen wiederherstellen (nur Superadmin).
+
+    Entfernt `geloescht_am` Zeitstempel. Kaskadiert zu Kontakten.
+    """
+    service = ComService(db)
+    restored = await service.restore_unternehmen(unternehmen_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail="Unternehmen nicht gefunden")
 
 
 @router.get("/{unternehmen_id}", response_model=ComUnternehmenDetail)

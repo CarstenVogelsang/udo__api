@@ -33,6 +33,12 @@ from app.schemas.billing import (
     SperrenRequest,
     InvoiceList,
 )
+from app.schemas.setting import (
+    SystemSettingResponse,
+    SystemSettingUpdate,
+    SystemSettingList,
+)
+from app.services.setting import SettingService
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -347,3 +353,67 @@ async def list_rechnungen(
     """List all invoices (superadmin only)."""
     service = BillingService(db)
     return await service.get_rechnungen(skip=skip, limit=limit)
+
+
+# ============ System Settings ============
+
+
+@router.get(
+    "/settings",
+    response_model=SystemSettingList,
+    summary="Alle Einstellungen",
+    description="Zeigt alle System-Einstellungen.",
+)
+async def list_settings(
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all system settings (superadmin only)."""
+    service = SettingService(db)
+    items = await service.get_all_settings()
+    return {"items": items}
+
+
+@router.get(
+    "/settings/{key}",
+    response_model=SystemSettingResponse,
+    summary="Einstellung abrufen",
+    description="Gibt eine bestimmte System-Einstellung zurück.",
+)
+async def get_setting(
+    key: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a system setting by key (superadmin only)."""
+    service = SettingService(db)
+    setting = await service.get_setting(key)
+    if not setting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Einstellung '{key}' nicht gefunden.",
+        )
+    return setting
+
+
+@router.patch(
+    "/settings/{key}",
+    response_model=SystemSettingResponse,
+    summary="Einstellung aktualisieren",
+    description="Aktualisiert den Wert einer System-Einstellung.",
+)
+async def update_setting(
+    key: str,
+    data: SystemSettingUpdate,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a system setting (superadmin only)."""
+    service = SettingService(db)
+    setting = await service.update_setting(key, data.value)
+    if not setting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Einstellung '{key}' nicht gefunden.",
+        )
+    return setting
