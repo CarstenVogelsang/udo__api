@@ -139,7 +139,7 @@ def _normalize_email(value: Any) -> Any:
 
 
 def _extract_anrede(value: Any) -> Any:
-    """Extract Anrede: 'Sehr geehrter Herr' -> 'Herr'."""
+    """Extract Anrede: 'Sehr geehrter Herr' or 'Herr Jan Müller' -> 'Herr'."""
     if not isinstance(value, str) or not value.strip():
         return value
     val = value.strip()
@@ -148,6 +148,43 @@ def _extract_anrede(value: Any) -> Any:
     if 'Frau' in val:
         return 'Frau'
     return val
+
+
+def _extract_plz(value: Any) -> Any:
+    """Extract PLZ from combined 'PLZ Ort': '39619 Arendsee' -> '39619'."""
+    if value is None:
+        return None
+    val = str(value).strip()
+    if not val:
+        return None
+    match = re.match(r'^(\d{4,5})\s+', val)
+    if match:
+        return match.group(1).zfill(5)
+    # Fallback: try pure digits
+    digits = re.sub(r'[^\d]', '', val)
+    return digits.zfill(5) if digits else None
+
+
+def _extract_vorname(value: Any) -> Any:
+    """Extract Vorname from 'Anrede Vorname Nachname': 'Herr Jan Müller' -> 'Jan'."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    parts = value.strip().split()
+    # Skip Anrede (Herr/Frau) at the beginning
+    if parts and parts[0] in ('Herr', 'Frau'):
+        parts = parts[1:]
+    return parts[0].strip() if len(parts) >= 2 else None
+
+
+def _extract_nachname(value: Any) -> Any:
+    """Extract Nachname from 'Anrede Vorname Nachname': 'Herr Jan Müller' -> 'Müller'."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    parts = value.strip().split()
+    # Skip Anrede (Herr/Frau) at the beginning
+    if parts and parts[0] in ('Herr', 'Frau'):
+        parts = parts[1:]
+    return ' '.join(parts[1:]).strip() if len(parts) >= 2 else None
 
 
 # Registry of available transformations
@@ -165,6 +202,9 @@ TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "normalize_url": _normalize_url,
     "normalize_email": _normalize_email,
     "extract_anrede": _extract_anrede,
+    "extract_plz": _extract_plz,
+    "extract_vorname": _extract_vorname,
+    "extract_nachname": _extract_nachname,
 }
 
 
