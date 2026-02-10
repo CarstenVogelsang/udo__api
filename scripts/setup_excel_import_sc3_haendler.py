@@ -49,6 +49,8 @@ UNTERNEHMEN_FIELDS = [
     # External IDs
     ("Task ID", "_extid", "external_id:asana.task_id", "always"),
     ("BD Kd-Nr.", "_extid", "external_id:buschdata.kundennr", "always"),
+    # Business Identifiers
+    ("USt-IdNr", "_bizid", "business_id:ust_id", "always"),
 ]
 
 KONTAKT_FIELDS = [

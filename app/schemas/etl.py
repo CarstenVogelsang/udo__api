@@ -194,6 +194,35 @@ class EtlImportLogList(BaseModel):
     total: int
 
 
+# ============ Import Record Tracking Schemas ============
+
+class EtlImportRecordResponse(BaseModel):
+    """Response schema for EtlImportRecord."""
+    id: str
+    batch_id: str
+    entity_type: str
+    entity_id: str
+    action: str
+    erstellt_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EtlImportRecordList(BaseModel):
+    """List of import records for a batch."""
+    items: list[EtlImportRecordResponse]
+    total: int
+    batch_id: str
+
+
+class EtlImportRollbackResult(BaseModel):
+    """Result of a batch rollback operation."""
+    batch_id: str
+    rolled_back: int
+    skipped: int
+    details: list[str] = []
+
+
 # ============ Trigger Import Schema ============
 
 class EtlImportTrigger(BaseModel):

@@ -646,4 +646,5 @@ class EtlService:
             "fk_lookup:<table>.<field>",
             "fk_lookup_or_create:<table>.<field>",
             "ref_current:<field>",
+            "business_id:<typ>",
         ]

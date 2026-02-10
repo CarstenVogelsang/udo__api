@@ -146,6 +146,14 @@ class ComUnternehmen(Base):
         """Returns list of associated Organisationen."""
         return [z.organisation for z in self.organisation_zuordnungen]
 
+    # Relationship to Business Identifiers (USt-ID, DUNS, etc.)
+    identifikationen = relationship(
+        "ComUnternehmenIdentifikation",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
     # Relationship to Kontakte
     kontakte = relationship(
         "ComKontakt",
@@ -216,6 +224,42 @@ class ComKontakt(Base):
 
     def __repr__(self):
         return f"<ComKontakt {self.vorname} {self.nachname}>"
+
+
+class ComUnternehmenIdentifikation(Base):
+    """
+    Business identifiers for companies (USt-ID, DUNS, W-IdNr, etc.).
+
+    Unlike ComExternalId (import artifacts), these are real-world,
+    publicly registered business identifiers used for deduplication
+    and compliance.
+
+    Known types:
+    - ust_id: Umsatzsteuer-Identifikationsnummer (DE123456789)
+    - duns: D&B DUNS Number (123456789)
+    - w_idnr: Wirtschafts-Identifikationsnr. (DE123456789012)
+    - hrnr: Handelsregisternummer (HRB 12345)
+    - glnr: Global Location Number (4012345000000)
+    """
+    __tablename__ = "com_unternehmen_identifikation"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    typ = Column(String(50), nullable=False)        # "ust_id", "duns", "w_idnr", "hrnr"
+    wert = Column(String(255), nullable=False)       # "DE123456789"
+    ist_verifiziert = Column(Boolean, default=False)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="identifikationen")
+
+    __table_args__ = (
+        Index("uq_unt_ident_typ", "unternehmen_id", "typ", unique=True),
+        Index("idx_ident_lookup", "typ", "wert"),
+    )
+
+    def __repr__(self):
+        return f"<ComUnternehmenIdentifikation {self.typ}={self.wert}>"
 
 
 class ComExternalId(Base):

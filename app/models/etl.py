@@ -133,6 +133,32 @@ class EtlFieldMapping(Base):
         return f"<EtlFieldMapping {self.source_field} → {self.target_field}{transform_str}>"
 
 
+class EtlImportRecord(Base):
+    """
+    Tracks individual records created/updated by an import.
+
+    Enables per-record auditing and soft-delete rollback:
+    - Which batch created/updated which entity?
+    - Rollback: set geloescht_am on all "created" entities of a batch.
+    """
+    __tablename__ = "etl_import_record"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    batch_id = Column(String(36), nullable=False, index=True)
+    entity_type = Column(String(50), nullable=False)    # "unternehmen", "kontakt", "junction"
+    entity_id = Column(UUID, nullable=False)
+    action = Column(String(20), nullable=False)         # "created", "updated"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_import_record_entity", "entity_type", "entity_id"),
+        Index("idx_import_record_batch", "batch_id", "entity_type"),
+    )
+
+    def __repr__(self):
+        return f"<EtlImportRecord {self.action} {self.entity_type}:{self.entity_id}>"
+
+
 class EtlImportLog(Base):
     """
     Logs ETL import runs for auditing and debugging.

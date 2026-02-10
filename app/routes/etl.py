@@ -44,6 +44,7 @@ from app.schemas.etl import (
 ALLOWED_ETL_TABLES = {
     'com_unternehmen', 'com_kontakt', 'com_organisation',
     'com_unternehmen_organisation', 'com_external_id',
+    'com_unternehmen_identifikation',
     'geo_land', 'geo_bundesland', 'geo_kreis', 'geo_ort', 'geo_ortsteil',
 }
 

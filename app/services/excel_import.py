@@ -19,8 +19,12 @@ from openpyxl import load_workbook
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.com import ComUnternehmen, ComKontakt, ComExternalId
-from app.models.etl import EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog
+from app.models.com import (
+    ComUnternehmen, ComKontakt, ComExternalId, ComUnternehmenIdentifikation,
+)
+from app.models.etl import (
+    EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog, EtlImportRecord,
+)
 from app.models.geo import Base, generate_uuid
 from app.services.etl import TRANSFORMS, EtlService
 
@@ -35,6 +39,7 @@ class ExcelImportService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._etl_service = EtlService(db)
+        self._batch_id: str = ""
         # FK lookup caches (shared with EtlService for fk_lookup_or_create)
         self._fk_caches: dict[str, dict] = {}
         # Dedup caches (loaded once, O(1) lookup per row)
@@ -46,6 +51,7 @@ class ExcelImportService:
         self._name_cache: dict[str, str] = {}         # normalized firmierung -> unternehmen.id
         self._extid_cache: dict[str, str] = {}        # "source:type:value" -> entity_id
         self._entity_extid_set: set[str] = set()     # "entity_type:entity_id:source:type"
+        self._ident_cache: dict[str, str] = {}        # "typ:wert" -> unternehmen_id
 
     async def run_import(
         self,
@@ -59,9 +65,10 @@ class ExcelImportService:
         Returns dict with import statistics.
         """
         batch_id = str(uuid.uuid4())
+        self._batch_id = batch_id
 
         # 1. Load ETL configuration
-        source, u_mapping, k_mapping, u_fields, k_fields, extid_fields, junction_configs = (
+        source, u_mapping, k_mapping, u_fields, k_fields, extid_fields, bizid_fields, junction_configs = (
             await self._load_config(source_name)
         )
 
@@ -116,7 +123,7 @@ class ExcelImportService:
             try:
                 await self._process_row(
                     row, i + 2,  # Excel row number (1-based header + 1-based data)
-                    u_fields, k_fields, extid_fields,
+                    u_fields, k_fields, extid_fields, bizid_fields,
                     junction_configs,
                     source_name, stats, dry_run,
                 )
@@ -160,6 +167,7 @@ class ExcelImportService:
         u_fields: list[EtlFieldMapping],
         k_fields: list[EtlFieldMapping],
         extid_fields: list[tuple[str, str, str]],  # [(source_field, source_name, id_type)]
+        bizid_fields: list[tuple[str, str]],        # [(source_field, ident_type)]
         junction_configs: list[tuple[EtlTableMapping, list[EtlFieldMapping]]],
         source_name: str,
         stats: dict,
@@ -185,7 +193,7 @@ class ExcelImportService:
 
         # Dedup Unternehmen
         existing_id, match_method = self._dedup_unternehmen(
-            u_data, row, source_name, extid_fields,
+            u_data, row, source_name, extid_fields, bizid_fields,
         )
 
         if dry_run:
@@ -207,6 +215,14 @@ class ExcelImportService:
         )
         stats[f"unternehmen_{u_action}"] += 1
 
+        # Track import record
+        self.db.add(EtlImportRecord(
+            batch_id=self._batch_id,
+            entity_type="unternehmen",
+            entity_id=unternehmen_id,
+            action=u_action,
+        ))
+
         # Update dedup caches with new/updated data
         self._update_dedup_caches(unternehmen_id, u_data)
 
@@ -214,6 +230,9 @@ class ExcelImportService:
         await self._save_external_ids(
             "unternehmen", unternehmen_id, row, extid_fields,
         )
+
+        # Save business identifiers (USt-ID, DUNS, etc.)
+        await self._save_business_ids(unternehmen_id, row, bizid_fields)
 
         # Process junction table mappings (e.g., com_unternehmen_organisation)
         if junction_configs:
@@ -237,6 +256,14 @@ class ExcelImportService:
             unternehmen_id, k_data, k_fields,
         )
         stats[f"kontakte_{k_action}"] += 1
+
+        # Track kontakt import record
+        self.db.add(EtlImportRecord(
+            batch_id=self._batch_id,
+            entity_type="kontakt",
+            entity_id=kontakt_id,
+            action=k_action,
+        ))
 
     # ============ Excel Parsing ============
 
@@ -322,15 +349,20 @@ class ExcelImportService:
         u_fields_all = list(u_fields_result.scalars().all())
         k_fields_all = list(k_fields_result.scalars().all())
 
-        # Separate external_id fields from regular fields
+        # Separate external_id and business_id fields from regular fields
         u_fields = []
         extid_fields = []
+        bizid_fields = []  # [(source_field, ident_type)]
         for f in u_fields_all:
             if f.transform and f.transform.startswith("external_id:"):
                 # Parse "external_id:smartmail.subscriber_id"
                 parts = f.transform.split(":", 1)[1]
                 src_name, id_type = parts.split(".", 1)
                 extid_fields.append((f.source_field, src_name, id_type))
+            elif f.transform and f.transform.startswith("business_id:"):
+                # Parse "business_id:ust_id"
+                ident_type = f.transform.split(":", 1)[1]
+                bizid_fields.append((f.source_field, ident_type))
             else:
                 u_fields.append(f)
 
@@ -346,7 +378,7 @@ class ExcelImportService:
                 junction_configs.append((jm, jf_fields))
 
         return (source, u_mapping, k_mapping, u_fields, k_fields_all,
-                extid_fields, junction_configs)
+                extid_fields, bizid_fields, junction_configs)
 
     # ============ Field Mapping ============
 
@@ -479,6 +511,14 @@ class ExcelImportService:
         await self.db.execute(insert_query, params)
         stats["junction_created"] += 1
 
+        # Track junction import record
+        self.db.add(EtlImportRecord(
+            batch_id=self._batch_id,
+            entity_type=f"junction:{target_table}",
+            entity_id=new_id,
+            action="created",
+        ))
+
     # ============ Dedup Caches ============
 
     async def _build_dedup_caches(self):
@@ -523,10 +563,19 @@ class ExcelImportService:
             entity_key = f"{eid.entity_type}:{eid.entity_id}:{eid.source_name}:{eid.id_type}"
             self._entity_extid_set.add(entity_key)
 
+        # Load business identifiers (USt-ID, DUNS, etc.)
+        result = await self.db.execute(
+            text("SELECT unternehmen_id, typ, wert FROM com_unternehmen_identifikation")
+        )
+        for row in result.all():
+            key = f"{row[1]}:{row[2]}"
+            self._ident_cache[key] = str(row[0])
+
         logger.info(
             f"Dedup caches loaded: {len(self._email_cache)} emails, "
             f"{len(self._url_cache)} urls, {len(self._phone_cache)} phones, "
-            f"{len(self._name_cache)} names, {len(self._extid_cache)} external IDs"
+            f"{len(self._name_cache)} names, {len(self._extid_cache)} external IDs, "
+            f"{len(self._ident_cache)} business IDs"
         )
 
     async def _build_fk_caches(self, field_mappings: list[EtlFieldMapping]):
@@ -589,10 +638,19 @@ class ExcelImportService:
         source_row: dict,
         source_name: str,
         extid_fields: list[tuple[str, str, str]],
+        bizid_fields: list[tuple[str, str]] | None = None,
     ) -> tuple[str | None, str | None]:
         """
         Multi-stage deduplication cascade.
         Returns: (existing_unternehmen_id, match_method)
+
+        Priority order:
+        1. External ID (Asana Task ID, Buschdata Kd-Nr.)
+        2. Business Identifier (USt-ID, DUNS, etc.)
+        3. Email
+        4. Website
+        5. Phone
+        6. Firmierung
         """
         # Stage 1: External ID match
         for src_field, ext_source, ext_type in extid_fields:
@@ -602,27 +660,32 @@ class ExcelImportService:
                 if cache_key in self._extid_cache:
                     return self._extid_cache[cache_key], "external_id"
 
-        # Stage 2: Email match
+        # Stage 2: Business Identifier match (USt-ID, DUNS, etc.)
+        if bizid_fields:
+            for src_field, ident_type in bizid_fields:
+                val = source_row.get(src_field)
+                if val is not None and str(val).strip():
+                    cache_key = f"{ident_type}:{str(val).strip()}"
+                    if cache_key in self._ident_cache:
+                        return self._ident_cache[cache_key], f"business_id:{ident_type}"
+
+        # Stage 3: Email match
         if u_data.get("email"):
             key = u_data["email"].strip().lower()
             if key in self._email_cache:
                 return self._email_cache[key], "email"
 
-        # Stage 3: Website match
+        # Stage 4: Website match
         if u_data.get("website"):
             key = _normalize_url_for_cache(u_data["website"])
             if key and key in self._url_cache:
                 return self._url_cache[key], "website"
 
-        # Stage 4: Phone match
+        # Stage 5: Phone match
         if u_data.get("telefon"):
             key = _normalize_phone_for_cache(u_data["telefon"])
             if key and key in self._phone_cache:
                 return self._phone_cache[key], "telefon"
-
-        # Stage 5: Address match (PLZ + Strasse)
-        # Not implemented in cache yet — would need composite key
-        # This is a V2 enhancement
 
         # Stage 6: Firmierung match
         if u_data.get("firmierung"):
@@ -802,6 +865,44 @@ class ExcelImportService:
             self.db.add(new_extid)
             self._extid_cache[cache_key] = entity_id
             self._entity_extid_set.add(entity_key)
+
+    # ============ Business Identifiers ============
+
+    async def _save_business_ids(
+        self,
+        unternehmen_id: str,
+        source_row: dict[str, Any],
+        bizid_fields: list[tuple[str, str]],
+    ):
+        """Save business identifiers (USt-ID, DUNS, etc.) to com_unternehmen_identifikation."""
+        for src_field, ident_type in bizid_fields:
+            value = source_row.get(src_field)
+            if value is None or not str(value).strip():
+                continue
+
+            value_str = str(value).strip()
+            cache_key = f"{ident_type}:{value_str}"
+
+            # Already exists for this or another Unternehmen?
+            if cache_key in self._ident_cache:
+                continue
+
+            # Upsert: check if this Unternehmen already has this type
+            existing = await self.db.execute(
+                select(ComUnternehmenIdentifikation)
+                .where(ComUnternehmenIdentifikation.unternehmen_id == unternehmen_id)
+                .where(ComUnternehmenIdentifikation.typ == ident_type)
+            )
+            if existing.scalar_one_or_none():
+                continue
+
+            new_ident = ComUnternehmenIdentifikation(
+                unternehmen_id=unternehmen_id,
+                typ=ident_type,
+                wert=value_str,
+            )
+            self.db.add(new_ident)
+            self._ident_cache[cache_key] = unternehmen_id
 
 
 # ============ Helper Functions ============
