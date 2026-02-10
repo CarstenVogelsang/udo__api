@@ -593,21 +593,30 @@ class EtlService:
         self,
         value: Any,
         transform: str | None,
-        fk_caches: dict[str, dict[Any, str]] | None = None
+        fk_caches: dict[str, dict[Any, str]] | None = None,
+        ref_context: dict[str, Any] | None = None,
     ) -> Any:
         """
         Apply a transformation to a value.
 
         Args:
             value: The value to transform
-            transform: Transformation name or "fk_lookup:table.field"
+            transform: Transformation name or "fk_lookup:table.field" or "ref_current:field"
             fk_caches: Pre-built FK lookup caches
+            ref_context: Current record context for ref_current transforms
 
         Returns:
             Transformed value
         """
         if transform is None:
             return value
+
+        # Handle ref_current — references a field from the current primary record
+        if transform.startswith("ref_current:"):
+            if ref_context is None:
+                return None
+            field = transform.split(":", 1)[1]
+            return ref_context.get(field)
 
         # Handle FK lookup transformation
         if transform.startswith("fk_lookup_or_create:") or transform.startswith("fk_lookup:"):
@@ -636,4 +645,5 @@ class EtlService:
         return list(TRANSFORMS.keys()) + [
             "fk_lookup:<table>.<field>",
             "fk_lookup_or_create:<table>.<field>",
+            "ref_current:<field>",
         ]

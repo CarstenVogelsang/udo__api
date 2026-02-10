@@ -61,7 +61,7 @@ class ExcelImportService:
         batch_id = str(uuid.uuid4())
 
         # 1. Load ETL configuration
-        source, u_mapping, k_mapping, u_fields, k_fields, extid_fields = (
+        source, u_mapping, k_mapping, u_fields, k_fields, extid_fields, junction_configs = (
             await self._load_config(source_name)
         )
 
@@ -69,10 +69,15 @@ class ExcelImportService:
         rows = self._parse_excel(file_content)
         logger.info(f"Excel parsed: {len(rows)} rows")
 
+        # Collect all field mappings for FK cache building
+        all_fields = u_fields + k_fields
+        for _jm, jf in junction_configs:
+            all_fields += jf
+
         # 3. Build dedup caches
         await self._build_dedup_caches()
         await self._build_plz_cache()
-        await self._build_fk_caches(u_fields + k_fields_all)
+        await self._build_fk_caches(all_fields)
 
         # 4. Create import logs
         u_log = EtlImportLog(
@@ -101,6 +106,8 @@ class ExcelImportService:
             "kontakte_created": 0,
             "kontakte_updated": 0,
             "kontakte_skipped": 0,
+            "junction_created": 0,
+            "junction_skipped": 0,
             "errors": 0,
             "error_details": [],
         }
@@ -110,6 +117,7 @@ class ExcelImportService:
                 await self._process_row(
                     row, i + 2,  # Excel row number (1-based header + 1-based data)
                     u_fields, k_fields, extid_fields,
+                    junction_configs,
                     source_name, stats, dry_run,
                 )
             except Exception as e:
@@ -152,11 +160,12 @@ class ExcelImportService:
         u_fields: list[EtlFieldMapping],
         k_fields: list[EtlFieldMapping],
         extid_fields: list[tuple[str, str, str]],  # [(source_field, source_name, id_type)]
+        junction_configs: list[tuple[EtlTableMapping, list[EtlFieldMapping]]],
         source_name: str,
         stats: dict,
         dry_run: bool,
     ):
-        """Process a single Excel row: Unternehmen + Kontakt."""
+        """Process a single Excel row: Unternehmen + Kontakt + Junction Tables."""
         # Apply Unternehmen field mappings
         u_data = self._apply_field_mappings(row, u_fields)
 
@@ -206,6 +215,14 @@ class ExcelImportService:
             "unternehmen", unternehmen_id, row, extid_fields,
         )
 
+        # Process junction table mappings (e.g., com_unternehmen_organisation)
+        if junction_configs:
+            ref_context = {"id": unternehmen_id, **u_data}
+            for jt_mapping, jt_fields in junction_configs:
+                await self._process_junction_row(
+                    row, jt_mapping, jt_fields, ref_context, stats,
+                )
+
         # Apply Kontakt field mappings
         k_data = self._apply_field_mappings(row, k_fields)
         await self._resolve_fk_or_create(k_data, k_fields, row)
@@ -253,7 +270,10 @@ class ExcelImportService:
     async def _load_config(self, source_name: str):
         """Load ETL configuration for the given source.
 
-        Returns: (source, u_mapping, k_mapping, u_fields, k_fields, extid_fields)
+        Returns: (source, u_mapping, k_mapping, u_fields, k_fields, extid_fields,
+                  junction_configs)
+        where junction_configs is a list of (EtlTableMapping, list[EtlFieldMapping])
+        for any additional target tables (e.g., com_unternehmen_organisation).
         """
         result = await self.db.execute(
             select(EtlSource)
@@ -275,11 +295,14 @@ class ExcelImportService:
 
         u_mapping = None
         k_mapping = None
+        other_mappings = []
         for m in mappings:
             if m.target_table == "com_unternehmen":
                 u_mapping = m
             elif m.target_table == "com_kontakt":
                 k_mapping = m
+            else:
+                other_mappings.append(m)
 
         if not u_mapping:
             raise ValueError(f"Kein TableMapping für com_unternehmen in '{source_name}'.")
@@ -311,7 +334,19 @@ class ExcelImportService:
             else:
                 u_fields.append(f)
 
-        return source, u_mapping, k_mapping, u_fields, k_fields_all, extid_fields
+        # Load field mappings for junction/additional tables
+        junction_configs = []
+        for jm in other_mappings:
+            jf_result = await self.db.execute(
+                select(EtlFieldMapping)
+                .where(EtlFieldMapping.table_mapping_id == jm.id)
+            )
+            jf_fields = list(jf_result.scalars().all())
+            if jf_fields:
+                junction_configs.append((jm, jf_fields))
+
+        return (source, u_mapping, k_mapping, u_fields, k_fields_all,
+                extid_fields, junction_configs)
 
     # ============ Field Mapping ============
 
@@ -319,10 +354,17 @@ class ExcelImportService:
         self,
         row: dict[str, Any],
         field_mappings: list[EtlFieldMapping],
+        ref_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Apply all field mappings + transformations to a single row."""
         result = {}
         for fm in field_mappings:
+            # ref_current: value comes from context, not from Excel row
+            if fm.transform and fm.transform.startswith("ref_current:"):
+                field = fm.transform.split(":", 1)[1]
+                result[fm.target_field] = ref_context.get(field) if ref_context else None
+                continue
+
             value = row.get(fm.source_field)
 
             # Coerce to string (openpyxl returns int/float for numeric cells)
@@ -382,6 +424,60 @@ class ExcelImportService:
                 value.strip(), table, field, self._fk_caches,
             )
             data[fm.target_field] = resolved_id
+
+    # ============ Junction Table Processing ============
+
+    async def _process_junction_row(
+        self,
+        row: dict[str, Any],
+        jt_mapping: EtlTableMapping,
+        jt_fields: list[EtlFieldMapping],
+        ref_context: dict[str, Any],
+        stats: dict,
+    ):
+        """Process a junction table mapping for one row (e.g., com_unternehmen_organisation)."""
+        target_table = jt_mapping.target_table
+
+        # Apply field mappings with ref_current context
+        jt_data = self._apply_field_mappings(row, jt_fields, ref_context=ref_context)
+
+        # Resolve fk_lookup_or_create transforms
+        await self._resolve_fk_or_create(jt_data, jt_fields, row)
+
+        # Skip if any required FK is None (e.g., no organisation resolved)
+        if any(v is None for v in jt_data.values()):
+            stats["junction_skipped"] += 1
+            return
+
+        # Check for existing record (dedup by all non-id columns)
+        where_parts = []
+        params = {}
+        for col, val in jt_data.items():
+            where_parts.append(f"{col} = :{col}")
+            params[col] = val
+
+        check_query = text(
+            f"SELECT id FROM {target_table} WHERE {' AND '.join(where_parts)} LIMIT 1"
+        )
+        existing = await self.db.execute(check_query, params)
+        if existing.fetchone():
+            stats["junction_skipped"] += 1
+            return
+
+        # Insert new junction record
+        new_id = str(generate_uuid())
+        now = datetime.utcnow()
+        columns = ["id"] + list(jt_data.keys()) + ["erstellt_am"]
+        placeholders = [":id"] + [f":{k}" for k in jt_data.keys()] + [":erstellt_am"]
+        params["id"] = new_id
+        params["erstellt_am"] = now
+
+        insert_query = text(
+            f"INSERT INTO {target_table} ({', '.join(columns)}) "
+            f"VALUES ({', '.join(placeholders)})"
+        )
+        await self.db.execute(insert_query, params)
+        stats["junction_created"] += 1
 
     # ============ Dedup Caches ============
 
