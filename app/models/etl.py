@@ -72,6 +72,7 @@ class EtlTableMapping(Base):
     target_table = Column(String(100), nullable=False)  # e.g., "com_unternehmen"
     target_pk_field = Column(String(100), nullable=False)  # e.g., "legacy_id"
     is_active = Column(Boolean, default=True)
+    drawflow_layout = Column(Text, nullable=True)  # JSON: Drawflow visual editor state
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

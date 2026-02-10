@@ -85,6 +85,7 @@ class EtlTableMappingResponse(EtlTableMappingBase):
     """Response schema for EtlTableMapping."""
     id: str
     source_id: str
+    drawflow_layout: str | None = None
     erstellt_am: datetime | None = None
     aktualisiert_am: datetime | None = None
 
@@ -236,6 +237,47 @@ class ExcelSourcePreview(BaseModel):
     description: str | None = None
     unternehmen_mappings: list[EtlFieldMappingResponse] = []
     kontakt_mappings: list[EtlFieldMappingResponse] = []
+
+
+# ============ Bulk Field Mapping Schemas ============
+
+class BulkFieldMappingItem(BaseModel):
+    """Single field mapping in a bulk operation."""
+    source_field: str = Field(..., min_length=1, max_length=100)
+    target_field: str = Field(..., min_length=1, max_length=100)
+    transform: str | None = Field(None, max_length=100)
+    is_required: bool = False
+    default_value: str | None = Field(None, max_length=255)
+    update_rule: str = Field("always", max_length=20)
+
+
+class BulkFieldMappingPayload(BaseModel):
+    """Payload for bulk-replacing all field mappings of a table mapping."""
+    field_mappings: list[BulkFieldMappingItem]
+    drawflow_layout: dict | None = None
+
+
+class BulkFieldMappingResponse(BaseModel):
+    """Response after bulk field mapping replace."""
+    table_mapping_id: str
+    field_mappings_count: int
+    field_mappings: list[EtlFieldMappingResponse]
+
+
+# ============ Schema Discovery Schemas ============
+
+class TableColumnInfo(BaseModel):
+    """Column metadata for schema discovery."""
+    name: str
+    type: str
+    nullable: bool
+    is_pk: bool
+
+
+class TableSchemaResponse(BaseModel):
+    """Schema of a target table for the visual mapping editor."""
+    table_name: str
+    columns: list[TableColumnInfo]
 
 
 # Forward reference updates

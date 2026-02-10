@@ -2,14 +2,20 @@
 API Routes for ETL (Extract-Transform-Load) configuration.
 
 All endpoints are Superadmin only.
-Provides CRUD operations for Sources, TableMappings, and FieldMappings.
+Provides CRUD operations for Sources, TableMappings, and FieldMappings,
+plus schema discovery and bulk operations for the visual mapping editor.
 """
+import json
+
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import require_superadmin
+from app.models.geo import Base
 from app.models.partner import ApiPartner
+from app.models.etl import EtlTableMapping, EtlFieldMapping
 from app.services.etl import EtlService
 from app.schemas.etl import (
     EtlSourceCreate,
@@ -28,7 +34,18 @@ from app.schemas.etl import (
     EtlFieldMappingList,
     EtlImportLogResponse,
     EtlImportLogList,
+    BulkFieldMappingPayload,
+    BulkFieldMappingResponse,
+    TableColumnInfo,
+    TableSchemaResponse,
 )
+
+# Tables available for ETL mapping (security whitelist)
+ALLOWED_ETL_TABLES = {
+    'com_unternehmen', 'com_kontakt', 'com_organisation',
+    'com_unternehmen_organisation', 'com_external_id',
+    'geo_land', 'geo_bundesland', 'geo_kreis', 'geo_ort', 'geo_ortsteil',
+}
 
 router = APIRouter(prefix="/etl", tags=["ETL"])
 
@@ -328,6 +345,116 @@ async def list_import_logs(
     """
     service = EtlService(db)
     return await service.get_import_logs(table_mapping_id=table_mapping_id, skip=skip, limit=limit)
+
+
+# ============ Bulk Operations (Visual Editor) ============
+
+@router.put(
+    "/table-mappings/{mapping_id}/field-mappings/bulk",
+    response_model=BulkFieldMappingResponse,
+)
+async def bulk_replace_field_mappings(
+    mapping_id: str,
+    payload: BulkFieldMappingPayload,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Alle Feld-Mappings eines Tabellen-Mappings ersetzen (nur Superadmin).
+
+    Idempotente Operation für den visuellen Mapping-Editor:
+    1. Löscht alle bestehenden Feld-Mappings
+    2. Erstellt neue Feld-Mappings aus dem Payload
+    3. Speichert optional den Drawflow-Layout-State
+    """
+    service = EtlService(db)
+    tm = await service.get_table_mapping_by_id(mapping_id)
+    if not tm:
+        raise HTTPException(404, "Tabellen-Mapping nicht gefunden")
+
+    # Delete existing field mappings
+    await db.execute(
+        delete(EtlFieldMapping).where(
+            EtlFieldMapping.table_mapping_id == mapping_id
+        )
+    )
+
+    # Create new field mappings
+    new_mappings = []
+    for item in payload.field_mappings:
+        fm = EtlFieldMapping(
+            table_mapping_id=mapping_id,
+            source_field=item.source_field,
+            target_field=item.target_field,
+            transform=item.transform,
+            is_required=item.is_required,
+            default_value=item.default_value,
+            update_rule=item.update_rule,
+        )
+        db.add(fm)
+        new_mappings.append(fm)
+
+    # Save drawflow layout state
+    if payload.drawflow_layout is not None:
+        tm.drawflow_layout = json.dumps(payload.drawflow_layout)
+    await db.flush()
+
+    await db.commit()
+
+    # Refresh to get generated IDs
+    for fm in new_mappings:
+        await db.refresh(fm)
+
+    return BulkFieldMappingResponse(
+        table_mapping_id=mapping_id,
+        field_mappings_count=len(new_mappings),
+        field_mappings=[
+            EtlFieldMappingResponse.model_validate(fm) for fm in new_mappings
+        ],
+    )
+
+
+# ============ Schema Discovery ============
+
+@router.get("/schema/tables")
+async def list_etl_tables(
+    admin: ApiPartner = Depends(require_superadmin),
+):
+    """
+    Liste aller für ETL verfügbaren Zieltabellen (nur Superadmin).
+
+    Gibt nur Tabellen zurück, die in der Whitelist stehen.
+    """
+    return {"tables": sorted(ALLOWED_ETL_TABLES)}
+
+
+@router.get("/schema/{table_name}", response_model=TableSchemaResponse)
+async def get_table_schema(
+    table_name: str,
+    admin: ApiPartner = Depends(require_superadmin),
+):
+    """
+    Spalten-Metadaten einer Zieltabelle abrufen (nur Superadmin).
+
+    Verwendet SQLAlchemy Base.metadata für in-memory Schema-Lookup.
+    """
+    if table_name not in ALLOWED_ETL_TABLES:
+        raise HTTPException(400, f"Tabelle '{table_name}' ist nicht für ETL verfügbar.")
+
+    table = Base.metadata.tables.get(table_name)
+    if table is None:
+        raise HTTPException(404, f"Tabelle '{table_name}' nicht in Metadata gefunden.")
+
+    columns = [
+        TableColumnInfo(
+            name=col.name,
+            type=str(col.type),
+            nullable=col.nullable if col.nullable is not None else True,
+            is_pk=col.primary_key,
+        )
+        for col in table.columns
+    ]
+    return TableSchemaResponse(table_name=table_name, columns=columns)
 
 
 # ============ Utility Endpoints ============
