@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.com import ComUnternehmen, ComKontakt, ComExternalId
 from app.models.etl import EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog
 from app.models.geo import Base, generate_uuid
-from app.services.etl import TRANSFORMS
+from app.services.etl import TRANSFORMS, EtlService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,9 @@ class ExcelImportService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._etl_service = EtlService(db)
+        # FK lookup caches (shared with EtlService for fk_lookup_or_create)
+        self._fk_caches: dict[str, dict] = {}
         # Dedup caches (loaded once, O(1) lookup per row)
         self._plz_cache: dict[str, str] = {}         # normalized PLZ -> geo_ort.id
         self._email_cache: dict[str, str] = {}        # normalized email -> unternehmen.id
@@ -69,6 +72,7 @@ class ExcelImportService:
         # 3. Build dedup caches
         await self._build_dedup_caches()
         await self._build_plz_cache()
+        await self._build_fk_caches(u_fields + k_fields_all)
 
         # 4. Create import logs
         u_log = EtlImportLog(
@@ -156,6 +160,9 @@ class ExcelImportService:
         # Apply Unternehmen field mappings
         u_data = self._apply_field_mappings(row, u_fields)
 
+        # Resolve fk_lookup_or_create transforms (e.g., Organisation)
+        await self._resolve_fk_or_create(u_data, u_fields, row)
+
         # Resolve GeoOrt by PLZ
         if "geo_ort_id" in u_data and u_data["geo_ort_id"]:
             plz = u_data["geo_ort_id"]  # At this point it's the normalized PLZ string
@@ -201,6 +208,7 @@ class ExcelImportService:
 
         # Apply Kontakt field mappings
         k_data = self._apply_field_mappings(row, k_fields)
+        await self._resolve_fk_or_create(k_data, k_fields, row)
 
         # Skip kontakt if no name
         if not k_data.get("vorname") or not k_data.get("nachname"):
@@ -335,11 +343,45 @@ class ExcelImportService:
             if fm.transform and fm.transform in TRANSFORMS:
                 value = TRANSFORMS[fm.transform](value)
             elif fm.transform and fm.transform.startswith("fk_lookup:"):
-                pass  # Handled separately if needed
+                pass  # Handled separately (geo_ort_id by PLZ)
+            elif fm.transform and fm.transform.startswith("fk_lookup_or_create:"):
+                pass  # Resolved async in _resolve_fk_or_create()
 
             result[fm.target_field] = value
 
         return result
+
+    async def _resolve_fk_or_create(
+        self,
+        data: dict[str, Any],
+        field_mappings: list[EtlFieldMapping],
+        source_row: dict[str, Any],
+    ):
+        """Resolve fk_lookup_or_create transforms — creates missing FK records."""
+        for fm in field_mappings:
+            if not fm.transform or not fm.transform.startswith("fk_lookup_or_create:"):
+                continue
+
+            # Parse "fk_lookup_or_create:com_organisation.kurzname"
+            lookup_spec = fm.transform.split(":", 1)[1]
+            if "." not in lookup_spec:
+                continue
+
+            table, field = lookup_spec.split(".", 1)
+            value = source_row.get(fm.source_field)
+
+            # Coerce to string
+            if value is not None and not isinstance(value, str):
+                value = str(value).strip()
+            if not value or not value.strip():
+                data[fm.target_field] = None
+                continue
+
+            # Lookup or create via EtlService
+            resolved_id = await self._etl_service.fk_lookup_or_create(
+                value.strip(), table, field, self._fk_caches,
+            )
+            data[fm.target_field] = resolved_id
 
     # ============ Dedup Caches ============
 
@@ -390,6 +432,23 @@ class ExcelImportService:
             f"{len(self._url_cache)} urls, {len(self._phone_cache)} phones, "
             f"{len(self._name_cache)} names, {len(self._extid_cache)} external IDs"
         )
+
+    async def _build_fk_caches(self, field_mappings: list[EtlFieldMapping]):
+        """Pre-build FK lookup caches for fk_lookup and fk_lookup_or_create transforms."""
+        for fm in field_mappings:
+            if not fm.transform:
+                continue
+            for prefix in ("fk_lookup:", "fk_lookup_or_create:"):
+                if fm.transform.startswith(prefix):
+                    spec = fm.transform[len(prefix):]
+                    if "." in spec:
+                        table, field = spec.split(".", 1)
+                        await self._etl_service.build_fk_lookup_cache(table, field)
+                        # Copy into shared caches
+                        cache_key = f"{table}.{field}"
+                        if cache_key in self._etl_service._fk_cache:
+                            self._fk_caches[cache_key] = self._etl_service._fk_cache[cache_key]
+                    break
 
     async def _build_plz_cache(self):
         """Pre-load PLZ -> GeoOrt.id mapping."""

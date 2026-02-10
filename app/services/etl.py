@@ -536,6 +536,59 @@ class EtlService:
         self._fk_cache[cache_key] = cache
         return cache
 
+    async def fk_lookup_or_create(
+        self,
+        value: Any,
+        table: str,
+        field: str,
+        fk_caches: dict[str, dict[Any, str]],
+    ) -> str | None:
+        """
+        Lookup a FK value in the cache, create the record if not found.
+
+        Args:
+            value: The lookup value (e.g., "FEDES")
+            table: Target table (e.g., "com_organisation")
+            field: Lookup field (e.g., "kurzname")
+            fk_caches: Shared FK caches dict (will be updated on create)
+
+        Returns:
+            ID of the found or newly created record, or None if value is empty.
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+
+        cache_key = f"{table}.{field}"
+
+        # 1. Cache lookup
+        cache = fk_caches.get(cache_key, {})
+        if value in cache:
+            return cache[value]
+
+        # 2. DB lookup (cache might be stale)
+        query = text(f"SELECT id FROM {table} WHERE {field} = :val LIMIT 1")
+        result = await self.db.execute(query, {"val": value})
+        row = result.fetchone()
+        if row:
+            record_id = str(row[0])
+            fk_caches.setdefault(cache_key, {})[value] = record_id
+            return record_id
+
+        # 3. Create new record
+        from app.models.geo import generate_uuid
+        new_id = str(generate_uuid())
+        now = datetime.utcnow()
+        insert_query = text(
+            f"INSERT INTO {table} (id, {field}, erstellt_am, aktualisiert_am) "
+            f"VALUES (:id, :val, :now, :now)"
+        )
+        await self.db.execute(insert_query, {"id": new_id, "val": value, "now": now})
+        await self.db.flush()
+
+        # Update cache
+        fk_caches.setdefault(cache_key, {})[value] = new_id
+        return new_id
+
     def apply_transform(
         self,
         value: Any,
@@ -557,12 +610,13 @@ class EtlService:
             return value
 
         # Handle FK lookup transformation
-        if transform.startswith("fk_lookup:"):
+        if transform.startswith("fk_lookup_or_create:") or transform.startswith("fk_lookup:"):
             if fk_caches is None:
                 return None
 
-            # Parse "fk_lookup:geo_ort.legacy_id"
-            lookup_spec = transform[10:]  # Remove "fk_lookup:"
+            # Parse "fk_lookup:geo_ort.legacy_id" or "fk_lookup_or_create:com_organisation.kurzname"
+            prefix_len = len(transform.split(":")[0]) + 1  # "fk_lookup:" or "fk_lookup_or_create:"
+            lookup_spec = transform[prefix_len:]
             if "." in lookup_spec:
                 table, field = lookup_spec.split(".", 1)
                 cache_key = f"{table}.{field}"
@@ -579,4 +633,7 @@ class EtlService:
 
     def get_available_transforms(self) -> list[str]:
         """Get list of available transformation names."""
-        return list(TRANSFORMS.keys()) + ["fk_lookup:<table>.<field>"]
+        return list(TRANSFORMS.keys()) + [
+            "fk_lookup:<table>.<field>",
+            "fk_lookup_or_create:<table>.<field>",
+        ]
