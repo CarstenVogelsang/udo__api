@@ -6,6 +6,7 @@ Creates:
 - EtlSource: sc3_haendler_asana (connection_type="excel")
 - EtlTableMapping: excel_sheet → com_unternehmen
 - EtlTableMapping: excel_sheet → com_kontakt
+- EtlTableMapping: excel_sheet → com_unternehmen_organisation (Junction)
 - EtlFieldMappings for all column mappings
 
 Run: uv run python scripts/setup_excel_import_sc3_haendler.py
@@ -56,6 +57,12 @@ KONTAKT_FIELDS = [
     ("AP1_Anrede", "nachname", "extract_nachname", "always"),
     ("EMail_allgemein", "email", "normalize_email", "always"),
     ("Telefon_allgemein", "telefon", "normalize_phone", "if_empty"),
+]
+
+# Junction table: Unternehmen ↔ Organisation (N:M)
+JUNCTION_FIELDS = [
+    ("Verband_TOYS1", "organisation_id", "fk_lookup_or_create:com_organisation.kurzname", "always"),
+    ("__ref__", "unternehmen_id", "ref_current:id", "always"),
 ]
 
 
@@ -149,12 +156,40 @@ def setup_sc3_haendler():
             session.add(fm)
             print(f"   {src:25s} → {tgt:20s} [{transform}] ({rule})")
 
+        # 6. Create TableMapping for Junction (Unternehmen ↔ Organisation)
+        print("\n6. TableMapping Junction (Unternehmen-Organisation) erstellen...")
+        tm_j = EtlTableMapping(
+            source_id=source.id,
+            source_table="excel_sheet",
+            source_pk_field="Task ID",
+            target_table="com_unternehmen_organisation",
+            target_pk_field="id",
+            is_active=True,
+        )
+        session.add(tm_j)
+        session.flush()
+        print(f"   -> Mapping erstellt: {tm_j.id}")
+
+        # 7. Create FieldMappings for Junction
+        print("\n7. FieldMappings Junction erstellen...")
+        for src, tgt, transform, rule in JUNCTION_FIELDS:
+            fm = EtlFieldMapping(
+                table_mapping_id=tm_j.id,
+                source_field=src,
+                target_field=tgt,
+                transform=transform,
+                update_rule=rule,
+            )
+            session.add(fm)
+            print(f"   {src:25s} → {tgt:20s} [{transform}] ({rule})")
+
         session.commit()
         print("\n" + "=" * 70)
         print("Setup abgeschlossen!")
         print(f"Source: sc3_haendler_asana ({source.id})")
         print(f"Unternehmen-Mapping: {len(UNTERNEHMEN_FIELDS)} Felder")
         print(f"Kontakt-Mapping: {len(KONTAKT_FIELDS)} Felder")
+        print(f"Junction-Mapping: {len(JUNCTION_FIELDS)} Felder")
         print("=" * 70)
 
     except Exception as e:
