@@ -7,7 +7,7 @@ from app.models.geo import (
     GeoOrt,
     GeoOrtsteil,
 )
-from app.models.base import BasColorPalette
+from app.models.base import BasColorPalette, BasSprache
 from app.models.partner import ApiPartner
 from app.models.etl import (
     EtlSource,
@@ -20,6 +20,15 @@ from app.models.com import (
     ComOrganisation,
     ComUnternehmenOrganisation,
     ComKontakt,
+    ComUnternehmenIdentifikation,
+    ComExternalId,
+    ComMarke,
+    ComSerie,
+    ComLieferbeziehung,
+    ComUnternehmenSortiment,
+    ComDienstleistung,
+    ComUnternehmenDienstleistung,
+    ComBonitaet,
 )
 from app.models.usage import (
     ApiUsage,
@@ -43,11 +52,22 @@ from app.models.plugin import (
     PlgLizenzStatus,
     PlgPreisModell,
 )
+from app.models.branche import (
+    BrnBranche,
+    BrnVerzeichnis,
+    BrnRegionaleGruppe,
+    BrnGoogleKategorie,
+    BrnGoogleMapping,
+    BrnAnmeldeArt,
+    BrnKostenModell,
+    BrnGruppenPlattform,
+)
 
 __all__ = [
     "Base",
     # Base Models
     "BasColorPalette",
+    "BasSprache",
     # Geo Models
     "GeoLand",
     "GeoBundesland",
@@ -67,6 +87,15 @@ __all__ = [
     "ComOrganisation",
     "ComUnternehmenOrganisation",
     "ComKontakt",
+    "ComUnternehmenIdentifikation",
+    "ComExternalId",
+    "ComMarke",
+    "ComSerie",
+    "ComLieferbeziehung",
+    "ComUnternehmenSortiment",
+    "ComDienstleistung",
+    "ComUnternehmenDienstleistung",
+    "ComBonitaet",
     # Usage Tracking
     "ApiUsage",
     "ApiUsageDaily",
@@ -87,4 +116,14 @@ __all__ = [
     "PlgPluginStatus",
     "PlgLizenzStatus",
     "PlgPreisModell",
+    # Branchen Models
+    "BrnBranche",
+    "BrnVerzeichnis",
+    "BrnRegionaleGruppe",
+    "BrnGoogleKategorie",
+    "BrnGoogleMapping",
+    # Branchen Enums
+    "BrnAnmeldeArt",
+    "BrnKostenModell",
+    "BrnGruppenPlattform",
 ]

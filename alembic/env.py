@@ -27,15 +27,24 @@ from app.models.geo import (
     GeoKreis, GeoOrt, GeoOrtsteil
 )
 from app.models.com import (
-    ComUnternehmen, ComKontakt, ComOrganisation, ComUnternehmenOrganisation
+    ComUnternehmen, ComKontakt, ComOrganisation, ComUnternehmenOrganisation,
+    ComUnternehmenIdentifikation, ComExternalId,
+    ComMarke, ComSerie, ComLieferbeziehung, ComUnternehmenSortiment,
+    ComDienstleistung, ComUnternehmenDienstleistung, ComBonitaet,
 )
 from app.models.partner import ApiPartner
 from app.models.etl import EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog
-from app.models.base import BasColorPalette
+from app.models.base import BasColorPalette, BasSprache
 from app.models.plugin import (
     PlgKategorie, PlgPlugin, PlgPluginVersion, PlgProjekttyp,
     PlgPreis, PlgProjekt, PlgLizenz, PlgLizenzHistorie
 )
+from app.models.branche import (  # noqa: F401
+    BrnBranche, BrnVerzeichnis, BrnRegionaleGruppe,
+    BrnGoogleKategorie, BrnGoogleMapping
+)
+from app.models.smart_filter import SmartFilter  # noqa: F401
+from app.models.setting import SystemSetting  # noqa: F401
 
 target_metadata = Base.metadata
 

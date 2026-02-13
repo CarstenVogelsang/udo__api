@@ -26,6 +26,8 @@ from app.routes.lizenz import admin_router as lizenz_admin_router
 from app.routes.lizenz import check_router as lizenz_check_router
 from app.routes.smart_filter import router as smart_filter_router
 from app.routes.excel_import import router as excel_import_router
+from app.routes.branche import router as branche_router
+from app.routes.branche import verzeichnis_router, gruppen_router, google_router
 from app.openapi_docs import setup_docs
 
 settings = get_settings()
@@ -84,6 +86,11 @@ def create_app() -> FastAPI:
     app.include_router(lizenz_check_router, prefix=settings.api_prefix)
     app.include_router(smart_filter_router, prefix=settings.api_prefix)
     app.include_router(excel_import_router, prefix=settings.api_prefix)
+    # Branchenklassifikation routers
+    app.include_router(branche_router, prefix=settings.api_prefix)
+    app.include_router(verzeichnis_router, prefix=settings.api_prefix)
+    app.include_router(gruppen_router, prefix=settings.api_prefix)
+    app.include_router(google_router, prefix=settings.api_prefix)
 
     # Setup custom role-based documentation
     setup_docs(app)
