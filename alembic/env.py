@@ -33,7 +33,10 @@ from app.models.com import (
     ComDienstleistung, ComUnternehmenDienstleistung, ComBonitaet,
 )
 from app.models.partner import ApiPartner
-from app.models.etl import EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog
+from app.models.etl import (
+    EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog,
+    EtlImportRecord, EtlImportFile, EtlMergeConfig, EtlMergeJoin,
+)
 from app.models.base import BasColorPalette, BasSprache
 from app.models.plugin import (
     PlgKategorie, PlgPlugin, PlgPluginVersion, PlgProjekttyp,
@@ -45,6 +48,15 @@ from app.models.branche import (  # noqa: F401
 )
 from app.models.smart_filter import SmartFilter  # noqa: F401
 from app.models.setting import SystemSetting  # noqa: F401
+from app.models.recherche import (  # noqa: F401
+    RecherchAuftrag, RecherchRohErgebnis,
+)
+from app.models.prod import (  # noqa: F401
+    ProdWerteliste, ProdSortiment, ProdEigenschaft,
+    ProdSortimentEigenschaft, ProdKategorie,
+    ProdArtikel, ProdArtikelSortiment, ProdArtikelEigenschaft,
+    ProdArtikelBild, ProdArtikelText,
+)
 
 target_metadata = Base.metadata
 

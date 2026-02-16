@@ -26,9 +26,9 @@ from app.models.etl import EtlSource, EtlTableMapping, EtlFieldMapping
 settings = get_settings()
 
 
-def get_sqlite_session():
-    """Creates a synchronous SQLite session."""
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -37,7 +37,7 @@ def get_sqlite_session():
 
 def setup_organisation_etl():
     """Sets up ETL configuration for Organisation import."""
-    session, engine = get_sqlite_session()
+    session, engine = get_db_session()
 
     print("=" * 70)
     print("ETL-Setup für Organisation (StoreGruppe)")

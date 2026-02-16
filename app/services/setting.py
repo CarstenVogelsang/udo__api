@@ -15,6 +15,18 @@ DEFAULTS = {
         "value": "500",
         "beschreibung": "Max. Ergebnisse für Bulk-Aktionen (Auto-Expand bei Smart Filter)",
     },
+    "recherche.google_places_api_key": {
+        "value": "",
+        "beschreibung": "Google Places API (New) Key für Recherche-Provider",
+    },
+    "recherche.dataforseo_login": {
+        "value": "",
+        "beschreibung": "DataForSEO Login (E-Mail) für SERP-Recherche",
+    },
+    "recherche.dataforseo_password": {
+        "value": "",
+        "beschreibung": "DataForSEO API-Passwort",
+    },
 }
 
 

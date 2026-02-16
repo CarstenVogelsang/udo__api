@@ -7,7 +7,7 @@ Die UDO API ist eine FastAPI-Anwendung für deutsche Geodaten. Sie bietet REST-E
 ## Technologie-Stack
 
 - **Framework**: FastAPI 0.122+
-- **Datenbank**: SQLite (Entwicklung), PostgreSQL (Produktion)
+- **Datenbank**: PostgreSQL (Entwicklung und Produktion)
 - **ORM**: SQLAlchemy 2.0 (async)
 - **Validierung**: Pydantic v2
 - **Server**: Uvicorn (ASGI)
@@ -174,7 +174,8 @@ uv run fastapi run app/main.py --port 3000
 Umgebungsvariablen in `.env`:
 
 ```env
-SQLITE_DATABASE_URL=sqlite+aiosqlite:///./data/udo.db
+DATABASE_URL=postgresql+asyncpg://cvogelsang@localhost:5432/udo_api
+DATABASE_URL_SYNC=postgresql://cvogelsang@localhost:5432/udo_api
 API_PREFIX=/api/v1
 DEBUG=false
 ```

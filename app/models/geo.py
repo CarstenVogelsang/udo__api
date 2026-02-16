@@ -23,9 +23,8 @@ from sqlalchemy import (
     event,
 )
 from sqlalchemy.orm import relationship, declarative_base
-from sqlalchemy.dialects.sqlite import BLOB
 
-# SQLite doesn't have native UUID, so we use String(36)
+# UUID stored as String(36) for cross-database compatibility
 UUID = String(36)
 
 Base = declarative_base()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migriert Ansprechpartner von Legacy MS SQL Server nach SQLite.
+Migriert Ansprechpartner von Legacy MS SQL Server nach PostgreSQL.
 
 WICHTIG: Legacy-DB ist READ-ONLY!
 
@@ -38,9 +38,9 @@ def get_legacy_connection():
     )
 
 
-def get_sqlite_session():
-    """SQLite Session."""
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -50,11 +50,11 @@ def get_sqlite_session():
 def migrate_kontakte(dry_run: bool = False):
     """Migriert Ansprechpartner mit Store-Verknüpfung."""
     print("=" * 70)
-    print("Kontakte Migration: Legacy MS SQL → SQLite")
+    print("Kontakte Migration: Legacy MS SQL → PostgreSQL")
     print(f"Modus: {'DRY-RUN' if dry_run else 'LIVE'}")
     print("=" * 70)
 
-    session, _ = get_sqlite_session()
+    session, _ = get_db_session()
     legacy_conn = get_legacy_connection()
     cursor = legacy_conn.cursor()
 

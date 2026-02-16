@@ -45,9 +45,9 @@ def get_legacy_connection():
     )
 
 
-def get_sqlite_session():
-    """Creates a synchronous SQLite session."""
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -82,7 +82,7 @@ def migrate_zuordnungen(dry_run: bool = False):
     print(f"Modus: {'DRY-RUN (keine Änderungen)' if dry_run else 'LIVE'}")
     print("=" * 70)
 
-    session, engine = get_sqlite_session()
+    session, engine = get_db_session()
 
     try:
         # Build caches

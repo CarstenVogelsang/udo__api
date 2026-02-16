@@ -8,7 +8,10 @@ All endpoints are Superadmin only.
 import logging
 from datetime import datetime
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy import select, update, delete, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -286,3 +289,35 @@ async def rollback_import(
         skipped=skipped,
         details=details,
     )
+
+
+# ============ Preview ============
+
+class PreviewRowRequest(BaseModel):
+    """Request body for single-row transform preview."""
+    source_name: str
+    source_row: dict[str, Any]
+
+
+@router.post("/preview-row")
+async def preview_row(
+    data: PreviewRowRequest,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Preview transform results for a single source row.
+
+    Applies all field mappings, transforms, and FK lookups for every target
+    table — without writing to the database.
+    """
+    service = ExcelImportService(db)
+    try:
+        result = await service.preview_row(data.source_name, data.source_row)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception(f"Preview failed: {e}")
+        raise HTTPException(500, f"Preview fehlgeschlagen: {str(e)}")
+
+    return result

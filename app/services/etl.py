@@ -187,7 +187,333 @@ def _extract_nachname(value: Any) -> Any:
     return ' '.join(parts[1:]).strip() if len(parts) >= 2 else None
 
 
-# Registry of available transformations
+# ============ New Simple Transforms (Märklin Import) ============
+
+# Legal suffixes that should keep their casing in title_case
+_LEGAL_SUFFIXES = {
+    "gmbh", "ag", "kg", "ohg", "ug", "gbr", "co.", "e.k.", "e.v.",
+    "s.a.", "s.r.l.", "ltd.", "inc.", "b.v.", "n.v.", "s.a.s.",
+    "gmbh", "kgaa",
+}
+_LEGAL_UPPER = {s.upper(): s for s in [
+    "GmbH", "AG", "KG", "OHG", "UG", "GbR", "Co.", "e.K.", "e.V.",
+    "S.A.", "S.r.l.", "Ltd.", "Inc.", "B.V.", "N.V.", "S.A.S.",
+    "GmbH", "KGaA",
+]}
+
+
+def _smart_title_case(value: Any) -> Any:
+    """Convert ALL-CAPS strings to Title Case, preserving legal suffixes."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    v = value.strip()
+    if v != v.upper():
+        return v  # Not all-caps, leave as-is
+    # Apply title() then fix legal suffixes
+    result = v.title()
+    for upper_form, correct_form in _LEGAL_UPPER.items():
+        result = result.replace(upper_form.title(), correct_form)
+    return result
+
+
+def _strip_star(value: Any) -> Any:
+    """Remove leading stars: '*CATYBA' -> 'CATYBA'."""
+    if isinstance(value, str):
+        return value.lstrip("*").strip()
+    return value
+
+
+def _strip_star_title_case(value: Any) -> Any:
+    """Strip leading stars, then apply smart_title_case."""
+    return _smart_title_case(_strip_star(value))
+
+
+def _map_sprache(value: Any) -> Any:
+    """Map single-char language code to ISO 639-1: D->de, E->en, etc."""
+    if not isinstance(value, str) or not value.strip():
+        return value
+    mapping = {"D": "de", "d": "de", "E": "en", "e": "en",
+               "F": "fr", "f": "fr", "I": "it", "i": "it",
+               "N": "nl", "n": "nl"}
+    return mapping.get(value.strip(), value.strip().lower())
+
+
+def _map_loeschkennzeichen(value: Any) -> Any:
+    """Map deletion flag to status: L/*->geschlossen, else->aktiv."""
+    if value and str(value).strip() in ("L", "*"):
+        return "geschlossen"
+    return "aktiv"
+
+
+def _map_store_typ(value: Any) -> Any:
+    """Map store type code to label."""
+    if not value:
+        return "standard"
+    mapping = {
+        "1": "maerklin_store", "2": "shop_in_shop",
+        "3": "wandloesung", "99": "standard",
+    }
+    return mapping.get(str(value).strip(), "standard")
+
+
+def _invert_x_flag(value: Any) -> Any:
+    """Invert X flag: X->False (keine Anzeige), empty->True."""
+    return not (value and str(value).strip().upper() == "X")
+
+
+def _x_to_bool(value: Any) -> Any:
+    """Convert X flag to bool: X->True, empty->False."""
+    return bool(value and str(value).strip().upper() == "X")
+
+
+def _validate_ean(value: Any) -> Any:
+    """Validate EAN/GTIN checksum (GS1 standard). Returns value if valid, None if invalid."""
+    if not value:
+        return value
+    ean = str(value).strip().replace(" ", "")
+    if not ean.isdigit() or len(ean) not in (8, 12, 13, 14):
+        return None
+    digits = [int(d) for d in ean]
+    checksum = sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits[:-1]))
+    expected = (10 - checksum % 10) % 10
+    return ean if digits[-1] == expected else None
+
+
+def _normalize_ean(value: Any) -> Any:
+    """Normalize EAN to 13 digits (pad EAN-8 with leading zeros)."""
+    if not value:
+        return value
+    ean = str(value).strip().replace(" ", "")
+    if not ean.isdigit():
+        return value
+    if len(ean) == 8:
+        return ean.rjust(13, "0")
+    return ean
+
+
+# ============ Row-Context Transforms ============
+# Signature: def transform(value, *, row: dict, params: str | None) -> Any
+
+# Rechtsform-Marker that indicate a company (not a sole proprietor)
+_COMPANY_MARKERS = {
+    "gmbh", "ag", "kg", "ohg", "ug", "gbr", "co.", "e.k.", "e.v.",
+    "ltd", "inc", "s.a.", "s.r.l.", "b.v.", "n.v.", "s.a.s.",
+    "kgaa", "co.kg", "co. kg", "& co",
+}
+
+# Inhaber-Marker in Name2
+_INHABER_MARKERS = {"inh.", "inh ", "inhaber", "inhaberin"}
+
+
+def _is_person_name(text: str) -> bool:
+    """Heuristic: text looks like a person name (2-3 words, no company markers)."""
+    if not text or not text.strip():
+        return False
+    words = text.strip().split()
+    if len(words) < 2 or len(words) > 4:
+        return False
+    lower = text.lower()
+    # Check for company markers
+    for marker in _COMPANY_MARKERS:
+        if marker in lower:
+            return False
+    # Check for special chars typical of company names
+    if any(c in text for c in "&+/"):
+        return False
+    return True
+
+
+def _detect_inhaber(name1: str | None, name2: str | None, land: str | None) -> dict | None:
+    """Detect owner info from Name1+Name2.
+
+    Returns: {"vorname": ..., "nachname": ..., "typ": ...} or None.
+    Only applies for DE/AT/CH.
+    """
+    if not name2 or not name2.strip():
+        return None
+
+    # Only DACH countries
+    if land and land.strip().upper() not in ("DE", "AT", "CH", "D", "A"):
+        return None
+
+    name2_stripped = name2.strip()
+    lower2 = name2_stripped.lower()
+
+    # 1. Explicit Inhaber marker
+    for marker in _INHABER_MARKERS:
+        if marker in lower2:
+            # Extract name after marker
+            idx = lower2.index(marker) + len(marker)
+            rest = name2_stripped[idx:].strip()
+            parts = rest.split()
+            if len(parts) >= 2:
+                return {
+                    "vorname": parts[0],
+                    "nachname": " ".join(parts[1:]),
+                    "typ": "Inhaber",
+                }
+            elif len(parts) == 1:
+                return {"vorname": "", "nachname": parts[0], "typ": "Inhaber"}
+            return None
+
+    # 2. Heuristic: Name2 is a person name AND Name1 has no company suffix
+    if name1:
+        lower1 = name1.lower()
+        has_company_suffix = any(m in lower1 for m in _COMPANY_MARKERS)
+        if not has_company_suffix and _is_person_name(name2_stripped):
+            parts = name2_stripped.split()
+            return {
+                "vorname": parts[0],
+                "nachname": " ".join(parts[1:]),
+                "typ": "Inhaber",
+            }
+
+    return None
+
+
+def _build_firmierung(value: Any, *, row: dict, params: str | None) -> Any:
+    """Build proper company name from Name1 + Name2.
+
+    Params: Name of the Name2 field (e.g., 'Name2').
+    """
+    name1 = _strip_star_title_case(value)
+    if not name1 or not str(name1).strip():
+        return None
+
+    name2_field = params or "Name2"
+    name2 = row.get(name2_field)
+    if not name2 or not str(name2).strip():
+        return str(name1).strip()
+
+    name2 = str(name2).strip()
+    land = row.get("Land")
+    inhaber = _detect_inhaber(str(name1), name2, str(land) if land else None)
+
+    if inhaber and inhaber.get("vorname"):
+        return f"{str(name1).strip()} - Inh. {inhaber['vorname']} {inhaber['nachname']}"
+    elif inhaber:
+        return f"{str(name1).strip()} - Inh. {inhaber['nachname']}"
+    else:
+        # Name2 is likely a secondary company name
+        name2_clean = _smart_title_case(name2) if name2 == name2.upper() else name2
+        return f"{str(name1).strip()} {name2_clean}".strip()
+
+
+def _detect_inhaber_vorname(value: Any, *, row: dict, params: str | None) -> Any:
+    """Extract owner first name from Name2. Params: Name1 field name."""
+    name1_field = params or "Name1"
+    name1 = row.get(name1_field)
+    land = row.get("Land")
+    inhaber = _detect_inhaber(
+        str(name1) if name1 else None,
+        str(value) if value else None,
+        str(land) if land else None,
+    )
+    return inhaber["vorname"] if inhaber else None
+
+
+def _detect_inhaber_nachname(value: Any, *, row: dict, params: str | None) -> Any:
+    """Extract owner last name from Name2. Params: Name1 field name."""
+    name1_field = params or "Name1"
+    name1 = row.get(name1_field)
+    land = row.get("Land")
+    inhaber = _detect_inhaber(
+        str(name1) if name1 else None,
+        str(value) if value else None,
+        str(land) if land else None,
+    )
+    return inhaber["nachname"] if inhaber else None
+
+
+def _detect_inhaber_typ(value: Any, *, row: dict, params: str | None) -> Any:
+    """Detect contact type from Name2. Returns 'Inhaber' or None."""
+    name1_field = params or "Name1"
+    name1 = row.get(name1_field)
+    land = row.get("Land")
+    inhaber = _detect_inhaber(
+        str(name1) if name1 else None,
+        str(value) if value else None,
+        str(land) if land else None,
+    )
+    return inhaber["typ"] if inhaber else None
+
+
+def _normalize_phone_e164(value: Any, *, row: dict, params: str | None) -> Any:
+    """Normalize phone number to E.164 format using country from row.
+
+    Params: Name of the country field (e.g., 'Land').
+    """
+    if not isinstance(value, str) or not value.strip():
+        return value
+    try:
+        import phonenumbers
+    except ImportError:
+        return _normalize_phone(value)
+
+    country_field = params or "Land"
+    country_raw = row.get(country_field)
+    country = str(country_raw).strip().upper() if country_raw else "DE"
+    # Map single-char codes
+    country_map = {"D": "DE", "A": "AT", "F": "FR", "I": "IT", "N": "NL"}
+    country = country_map.get(country, country)
+
+    try:
+        parsed = phonenumbers.parse(value.strip(), country)
+        if phonenumbers.is_valid_number(parsed):
+            return phonenumbers.format_number(
+                parsed, phonenumbers.PhoneNumberFormat.E164
+            )
+    except Exception:
+        pass
+
+    # Fallback to simple normalization
+    return _normalize_phone(value)
+
+
+def _split_street_name_dach(value: Any, *, row: dict, params: str | None) -> Any:
+    """Split street name — only for DACH countries. Returns None otherwise."""
+    country_field = params or "Land"
+    country = row.get(country_field)
+    c = str(country).strip().upper() if country else ""
+    dach = {"DE", "AT", "CH", "NL", "D", "A"}
+    if c in dach:
+        return _split_street_name(value)
+    return None
+
+
+def _split_street_hausnr_dach(value: Any, *, row: dict, params: str | None) -> Any:
+    """Split house number — only for DACH countries. Returns None otherwise."""
+    country_field = params or "Land"
+    country = row.get(country_field)
+    c = str(country).strip().upper() if country else ""
+    dach = {"DE", "AT", "CH", "NL", "D", "A"}
+    if c in dach:
+        return _split_street_hausnr(value)
+    return None
+
+
+def _map_bonitaet_score(value: Any, *, row: dict, params: str | None) -> Any:
+    """Map credit/order block flags to score. Returns None if no blocks.
+
+    Value: Kreditsperre flag, Params: Auftragssperre field name.
+    """
+    kredit = bool(value and str(value).strip().upper() in ("X", "1"))
+    auftrags_field = params
+    auftrags_val = row.get(auftrags_field) if auftrags_field else None
+    auftrags = bool(auftrags_val and str(auftrags_val).strip().upper() in ("X", "1"))
+
+    if kredit and auftrags:
+        return 5
+    if auftrags:
+        return 4
+    if kredit:
+        return 3
+    return None  # No entry
+
+
+# ============ Registries ============
+
+# Standard transforms: value -> value
 TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "trim": _trim,
     "upper": _upper,
@@ -205,6 +531,35 @@ TRANSFORMS: dict[str, Callable[[Any], Any]] = {
     "extract_plz": _extract_plz,
     "extract_vorname": _extract_vorname,
     "extract_nachname": _extract_nachname,
+    # Märklin import transforms
+    "smart_title_case": _smart_title_case,
+    "strip_star": _strip_star,
+    "strip_star_title_case": _strip_star_title_case,
+    "map_sprache": _map_sprache,
+    "map_loeschkennzeichen": _map_loeschkennzeichen,
+    "map_store_typ": _map_store_typ,
+    "invert_x_flag": _invert_x_flag,
+    "x_to_bool": _x_to_bool,
+    # Produktdaten transforms
+    "validate_ean": _validate_ean,
+    "normalize_ean": _normalize_ean,
+    "mwst_code": lambda v: {"1": 19.0, "2": 7.0, "3": 0.0}.get(str(v).strip(), None) if v else None,
+    "aktiv_to_status": lambda v: "AKT" if str(v).strip().lower() in ("true", "1", "ja", "yes") else "AUS",
+    "rabatt_to_bool": lambda v: str(v).strip() == "1" if v else False,
+}
+
+# Row-context transforms: (value, row, params) -> value
+# Used when a transform needs access to other columns in the same row.
+# Syntax in FieldMapping: "transform_name:param" (param is optional).
+ROW_TRANSFORMS: dict[str, Callable] = {
+    "build_firmierung": _build_firmierung,
+    "detect_inhaber_vorname": _detect_inhaber_vorname,
+    "detect_inhaber_nachname": _detect_inhaber_nachname,
+    "detect_inhaber_typ": _detect_inhaber_typ,
+    "normalize_phone_e164": _normalize_phone_e164,
+    "split_street_name_dach": _split_street_name_dach,
+    "split_street_hausnr_dach": _split_street_hausnr_dach,
+    "map_bonitaet_score": _map_bonitaet_score,
 }
 
 
@@ -536,6 +891,40 @@ class EtlService:
         self._fk_cache[cache_key] = cache
         return cache
 
+    async def fk_lookup(
+        self,
+        value: Any,
+        table: str,
+        field: str,
+        fk_caches: dict[str, dict[Any, str]],
+    ) -> str | None:
+        """
+        Lookup a FK value. Returns None if not found (no auto-create).
+
+        Args:
+            value: The lookup value (e.g., "Busch GmbH & Co. KG")
+            table: Target table (e.g., "com_unternehmen")
+            field: Lookup field (e.g., "firmierung")
+            fk_caches: Shared FK caches dict
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+
+        cache_key = f"{table}.{field}"
+        cache = fk_caches.get(cache_key, {})
+        if value in cache:
+            return cache[value]
+
+        query = text(f"SELECT id FROM {table} WHERE {field} = :val LIMIT 1")
+        result = await self.db.execute(query, {"val": value})
+        row = result.fetchone()
+        if row:
+            record_id = str(row[0])
+            fk_caches.setdefault(cache_key, {})[value] = record_id
+            return record_id
+
+        return None
+
     async def fk_lookup_or_create(
         self,
         value: Any,
@@ -643,6 +1032,8 @@ class EtlService:
     def get_available_transforms(self) -> list[str]:
         """Get list of available transformation names."""
         return list(TRANSFORMS.keys()) + [
+            f"{name}:<param>" for name in ROW_TRANSFORMS.keys()
+        ] + [
             "fk_lookup:<table>.<field>",
             "fk_lookup_or_create:<table>.<field>",
             "ref_current:<field>",

@@ -27,9 +27,9 @@ from app.models import com  # noqa: F401
 settings = get_settings()
 
 
-def get_sqlite_session():
-    """Creates a synchronous SQLite session."""
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -62,7 +62,7 @@ KONTAKT_FIELDS = [
 
 def setup_ev_smartmail():
     """Sets up ETL configuration for e-vendo Smartmail Excel import."""
-    session, engine = get_sqlite_session()
+    session, engine = get_db_session()
 
     print("=" * 70)
     print("ETL-Setup für e-vendo Smartmail Excel Import")

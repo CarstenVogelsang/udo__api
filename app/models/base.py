@@ -5,9 +5,56 @@ Prefix: bas_ (base)
 """
 from datetime import datetime
 
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Index, UniqueConstraint
 
 from app.models.geo import Base, UUID, generate_uuid
+
+
+class BasStatus(Base):
+    """
+    Universal status lookup table with context support.
+
+    Each status belongs to a context (e.g. 'unternehmen', 'kontakt', 'projekt')
+    so different entities can have different valid status values.
+
+    UNIQUE(code, kontext) ensures no duplicate codes within a context.
+    """
+    __tablename__ = "bas_status"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    code = Column(String(30), nullable=False, index=True)  # "aktiv", "geschlossen"
+    name = Column(String(100), nullable=False)  # "Aktiv", "Geschlossen"
+    kontext = Column(String(50), nullable=False, index=True)  # "unternehmen", "kontakt"
+    icon = Column(String(50))  # Tabler icon name: "circle-check", "circle-x"
+    farbe = Column(String(20))  # DaisyUI color: "success", "error", "warning"
+    sortierung = Column(Integer, default=0)  # Display order
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("code", "kontext", name="uq_status_code_kontext"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<BasStatus {self.kontext}.{self.code}: {self.name}>"
+
+
+class BasSprache(Base):
+    """
+    Language lookup table (ISO 639-1).
+
+    Used as FK reference for company communication language.
+    Seeded with: de, en, fr, it, nl.
+    """
+    __tablename__ = "bas_sprache"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    code = Column(String(5), unique=True, nullable=False, index=True)  # ISO 639-1: "de", "en"
+    name = Column(String(100), nullable=False)  # "Deutsch", "Englisch"
+    name_eng = Column(String(100))  # "German", "English"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<BasSprache {self.code}: {self.name}>"
 
 
 class BasColorPalette(Base):

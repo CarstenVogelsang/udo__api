@@ -191,37 +191,18 @@ class ComService:
             limit=limit
         )
 
-    async def create_unternehmen(
-        self,
-        kurzname: str,
-        firmierung: str | None = None,
-        strasse: str | None = None,
-        strasse_hausnr: str | None = None,
-        geo_ort_id: str | None = None,
-        legacy_id: int | None = None,
-    ) -> ComUnternehmen:
+    async def create_unternehmen(self, **kwargs) -> ComUnternehmen:
         """
         Create a new company.
 
-        Args:
-            kurzname: Short name (required)
-            firmierung: Full company name
-            strasse: Street name
-            strasse_hausnr: House number
-            geo_ort_id: UUID of GeoOrt
-            legacy_id: Optional legacy ID for migration
+        Accepts any column name of ComUnternehmen as keyword argument.
+        None values are filtered out.
 
         Returns:
             Created ComUnternehmen instance
         """
-        unternehmen = ComUnternehmen(
-            kurzname=kurzname,
-            firmierung=firmierung,
-            strasse=strasse,
-            strasse_hausnr=strasse_hausnr,
-            geo_ort_id=geo_ort_id,
-            legacy_id=legacy_id,
-        )
+        data = {k: v for k, v in kwargs.items() if v is not None}
+        unternehmen = ComUnternehmen(**data)
         self.db.add(unternehmen)
         await self.db.commit()
         await self.db.refresh(unternehmen)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Migrates geodata from Legacy MS SQL Server to SQLite.
+Migrates geodata from Legacy MS SQL Server to PostgreSQL.
 
 IMPORTANT:
 - Legacy-DB: READ-ONLY!
-- Target-DB: SQLite (Development)
+- Target-DB: PostgreSQL
 
 Generates:
 - UUIDs as primary keys
@@ -49,10 +49,9 @@ def get_legacy_connection():
     )
 
 
-def get_sqlite_session():
-    """Creates a SQLite session."""
-    # Use synchronous engine for migration
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -69,11 +68,11 @@ def sanitize_code(text: str) -> str:
 
 
 class DataMigrator:
-    """Handles the data migration from legacy DB to SQLite."""
+    """Handles the data migration from legacy DB to PostgreSQL."""
 
     def __init__(self):
         self.legacy_conn = get_legacy_connection()
-        self.session, self.engine = get_sqlite_session()
+        self.session, self.engine = get_db_session()
 
         # ID mappings: legacy_id -> (new_uuid, code)
         self.land_map = {}  # kLand_ISO -> (uuid, code)
@@ -85,7 +84,7 @@ class DataMigrator:
     def migrate_all(self):
         """Migrates all tables in the correct order."""
         print("="*70)
-        print("Datenmigration: Legacy MS SQL -> SQLite")
+        print("Datenmigration: Legacy MS SQL -> PostgreSQL")
         print("="*70)
 
         # Clear existing data

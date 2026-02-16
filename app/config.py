@@ -9,8 +9,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application Settings"""
 
-    # SQLite (Development/Production)
-    sqlite_database_url: str = "sqlite+aiosqlite:///./data/udo.db"
+    # PostgreSQL Database (async driver for FastAPI)
+    database_url: str = "postgresql+asyncpg://cvogelsang@localhost:5432/udo_api"
+    # Sync URL for Alembic and setup scripts (derived automatically)
+    database_url_sync: str = "postgresql://cvogelsang@localhost:5432/udo_api"
 
     # Legacy MS SQL Server (READ-ONLY!)
     mssql_host: str = "192.168.91.22"
@@ -24,6 +26,10 @@ class Settings(BaseSettings):
     api_title: str = "UDO API"
     api_version: str = "0.2.0"
     debug: bool = False
+
+    # File Upload
+    upload_dir: str = "./uploads"
+    max_upload_size_mb: int = 50
 
     # JWT Authentication
     jwt_secret_key: str = "dev-secret-key-change-in-production"  # Override in .env!

@@ -9,19 +9,107 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.geo import GeoOrtWithParents
 
 
+# ============ Lookup Schemas ============
+
+class BasStatusRead(BaseModel):
+    """Status lookup entry with context."""
+    id: str
+    code: str
+    name: str
+    kontext: str
+    icon: str | None = None
+    farbe: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BasSpracheRead(BaseModel):
+    """Language lookup entry."""
+    id: str
+    code: str
+    name: str
+    name_eng: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============ Brand / Series Schemas ============
+
+class ComSerieRead(BaseModel):
+    """Product series belonging to a brand."""
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComMarkeRead(BaseModel):
+    """Brand belonging to a manufacturer."""
+    id: str
+    name: str
+    kurzname: str | None = None
+    serien: list[ComSerieRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComMarkeSimple(BaseModel):
+    """Brand without nested relations (for embedding)."""
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComMarkeCreate(BaseModel):
+    """Schema for creating a new Marke."""
+    hersteller_id: str
+    name: str
+    kurzname: str | None = None
+
+
+class ComMarkeUpdate(BaseModel):
+    """Schema for updating a Marke (partial)."""
+    name: str | None = None
+    kurzname: str | None = None
+
+
+# ============ Dienstleistung Schemas ============
+
+class ComDienstleistungRead(BaseModel):
+    """Service offered by dealers."""
+    id: str
+    name: str
+    beschreibung: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComUnternehmenDienstleistungRead(BaseModel):
+    """Junction: service offered by a company (with nested service detail)."""
+    id: str
+    dienstleistung: ComDienstleistungRead
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ============ Base Schemas ============
 
 class ComUnternehmenBase(BaseModel):
     """Base schema for ComUnternehmen (without geo relation)."""
     id: str
     legacy_id: int | None = None
+    status: BasStatusRead | None = None
     kurzname: str | None = None
     firmierung: str | None = None
+    adresszeile: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
     website: str | None = None
     email: str | None = None
+    email2: str | None = None
     telefon: str | None = None
+    fax: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,10 +120,49 @@ class ComUnternehmenWithGeo(ComUnternehmenBase):
     """
     Unternehmen with full GeoOrt hierarchy.
 
-    Includes: Ort → Kreis → Bundesland → Land
+    Includes: Ort -> Kreis -> Bundesland -> Land
     """
     geo_ort: GeoOrtWithParents | None = None
     geloescht_am: datetime | None = None
+
+
+# ============ Supplier Relationship Schemas ============
+
+class ComLieferbeziehungRead(BaseModel):
+    """Supplier relationship for a company."""
+    id: str
+    lieferant_id: str
+    kundennummer: str | None = None
+    store_typ: str | None = None
+    bonus_haendler: bool = False
+    in_haendlersuche: bool = True
+    ist_mhi: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============ Sortiment Schemas ============
+
+class ComUnternehmenSortimentRead(BaseModel):
+    """Brand/series carried by a dealer."""
+    id: str
+    marke: ComMarkeSimple | None = None
+    serie: ComSerieRead | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============ Bonitat Schemas ============
+
+class ComBonitaetRead(BaseModel):
+    """Anonymized credit assessment."""
+    id: str
+    score: int
+    quelle: str | None = None
+    notiz: str | None = None
+    erstellt_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============ Detail Schemas ============
@@ -44,8 +171,18 @@ class ComUnternehmenDetail(ComUnternehmenWithGeo):
     """Unternehmen with all fields including timestamps."""
     status_datum: datetime | None = None
     geo_ort_id: str | None = None
+    sprache: BasSpracheRead | None = None
     erstellt_am: datetime | None = None
     aktualisiert_am: datetime | None = None
+
+
+class ComUnternehmenFullDetail(ComUnternehmenDetail):
+    """Unternehmen with all nested relations (for single-entity views)."""
+    organisationen: list['ComOrganisationSimple'] = []
+    lieferbeziehungen: list[ComLieferbeziehungRead] = []
+    sortimente: list[ComUnternehmenSortimentRead] = []
+    dienstleistung_zuordnungen: list[ComUnternehmenDienstleistungRead] = []
+    bonitaeten: list[ComBonitaetRead] = []
 
 
 # ============ List Response Schemas ============
@@ -63,7 +200,7 @@ class ComUnternehmenPartner(ComUnternehmenWithGeo):
     """
     Company schema for partner access with full geo hierarchy.
 
-    Includes all fields plus: Ort → Kreis → Bundesland → Land
+    Includes all fields plus: Ort -> Kreis -> Bundesland -> Land
     Partners can only see companies in their assigned countries.
     """
     legacy_id: int | None = None
@@ -224,12 +361,17 @@ class ComUnternehmenCreate(BaseModel):
     """Schema for creating a new Unternehmen."""
     kurzname: str
     firmierung: str | None = None
+    status: str | None = None
+    adresszeile: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
     website: str | None = None
     email: str | None = None
+    email2: str | None = None
     telefon: str | None = None
+    fax: str | None = None
     geo_ort_id: str | None = None
+    sprache_id: str | None = None
     legacy_id: int | None = None
 
 
@@ -237,12 +379,17 @@ class ComUnternehmenUpdate(BaseModel):
     """Schema for updating an Unternehmen (partial)."""
     kurzname: str | None = None
     firmierung: str | None = None
+    status: str | None = None
+    adresszeile: str | None = None
     strasse: str | None = None
     strasse_hausnr: str | None = None
     website: str | None = None
     email: str | None = None
+    email2: str | None = None
     telefon: str | None = None
+    fax: str | None = None
     geo_ort_id: str | None = None
+    sprache_id: str | None = None
     status_datum: datetime | None = None
 
 
@@ -257,3 +404,7 @@ class BulkActionResponse(BaseModel):
     """Response for bulk actions."""
     erfolg: int
     fehler: int
+
+
+# Resolve forward references
+ComUnternehmenFullDetail.model_rebuild()

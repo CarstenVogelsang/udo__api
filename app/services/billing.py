@@ -286,6 +286,192 @@ class BillingService:
 
         return {"items": items, "total": total}
 
+    # ---- Recherche Credit Reservation ----
+
+    async def reserve_credits(
+        self,
+        partner_id: str,
+        betrag_cents: int,
+        beschreibung: str,
+        referenz_id: str | None = None,
+    ) -> ApiCreditTransaction:
+        """Reserve credits for a recherche order.
+
+        Creates a negative transaction (typ="reservation") that holds funds
+        until the order completes. For 'credits' accounts, this actually
+        reduces guthaben_cents. For 'invoice'/'internal', it only logs.
+
+        Args:
+            partner_id: Partner UUID.
+            betrag_cents: Amount to reserve (positive number).
+            beschreibung: Human-readable description.
+            referenz_id: Optional reference (e.g., auftrag ID).
+
+        Returns:
+            The reservation transaction (use its ID for release).
+
+        Raises:
+            HTTPException 402 if insufficient credits.
+        """
+        account = await self.get_or_create_account(partner_id)
+
+        if account.billing_typ == "credits":
+            if account.guthaben_cents < betrag_cents:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=(
+                        f"Nicht genügend Guthaben für Reservierung. "
+                        f"Benötigt: {betrag_cents / 100:.2f} EUR, "
+                        f"Verfügbar: {account.guthaben_cents / 100:.2f} EUR"
+                    ),
+                    headers={"X-Billing-Status": "insufficient-credits"},
+                )
+            account.guthaben_cents -= betrag_cents
+            saldo = account.guthaben_cents
+        else:
+            saldo = account.guthaben_cents
+
+        transaction = ApiCreditTransaction(
+            billing_account_id=account.id,
+            typ="reservation",
+            betrag_cents=-betrag_cents,
+            saldo_danach_cents=saldo,
+            beschreibung=beschreibung,
+            referenz_typ="recherche_auftrag",
+            referenz_id=referenz_id,
+            erstellt_von="system",
+        )
+        self.db.add(transaction)
+        await self.db.flush()
+
+        logger.info(
+            f"Credits reserved: partner={partner_id} amount={betrag_cents}ct "
+            f"balance={saldo}ct ref={referenz_id}"
+        )
+        return transaction
+
+    async def settle_reservation(
+        self,
+        partner_id: str,
+        reservierung_transaction_id: str,
+        tatsaechlich_cents: int,
+        beschreibung: str,
+        referenz_id: str | None = None,
+    ) -> ApiCreditTransaction | None:
+        """Settle a reservation: charge actual cost, return surplus.
+
+        Compares actual cost to reserved amount. If actual < reserved,
+        credits the difference back to the partner.
+
+        Args:
+            partner_id: Partner UUID.
+            reservierung_transaction_id: ID of the original reservation tx.
+            tatsaechlich_cents: Actual cost (positive number).
+            beschreibung: Human-readable description.
+            referenz_id: Optional reference (e.g., auftrag ID).
+
+        Returns:
+            Refund transaction if surplus exists, None otherwise.
+        """
+        # Look up original reservation
+        result = await self.db.execute(
+            select(ApiCreditTransaction).where(
+                ApiCreditTransaction.id == reservierung_transaction_id,
+            )
+        )
+        reservation = result.scalar_one_or_none()
+        if not reservation:
+            logger.warning(
+                f"Reservation not found: {reservierung_transaction_id}"
+            )
+            return None
+
+        reserviert_cents = abs(reservation.betrag_cents)
+        ueberschuss_cents = reserviert_cents - tatsaechlich_cents
+
+        if ueberschuss_cents <= 0:
+            # Actual cost >= reserved — no refund needed
+            return None
+
+        account = await self.get_or_create_account(partner_id)
+
+        if account.billing_typ == "credits":
+            account.guthaben_cents += ueberschuss_cents
+            saldo = account.guthaben_cents
+        else:
+            saldo = account.guthaben_cents
+
+        refund = ApiCreditTransaction(
+            billing_account_id=account.id,
+            typ="reservation_release",
+            betrag_cents=ueberschuss_cents,
+            saldo_danach_cents=saldo,
+            beschreibung=beschreibung,
+            referenz_typ="recherche_auftrag",
+            referenz_id=referenz_id,
+            erstellt_von="system",
+        )
+        self.db.add(refund)
+        await self.db.flush()
+
+        logger.info(
+            f"Reservation settled: partner={partner_id} "
+            f"reserved={reserviert_cents}ct actual={tatsaechlich_cents}ct "
+            f"refund={ueberschuss_cents}ct balance={saldo}ct"
+        )
+        return refund
+
+    async def cancel_reservation(
+        self,
+        partner_id: str,
+        reservierung_transaction_id: str,
+        beschreibung: str,
+        referenz_id: str | None = None,
+    ) -> ApiCreditTransaction | None:
+        """Cancel a reservation and return all reserved credits.
+
+        Used when an order is cancelled before processing.
+
+        Returns:
+            Refund transaction, or None if reservation not found.
+        """
+        result = await self.db.execute(
+            select(ApiCreditTransaction).where(
+                ApiCreditTransaction.id == reservierung_transaction_id,
+            )
+        )
+        reservation = result.scalar_one_or_none()
+        if not reservation:
+            return None
+
+        reserviert_cents = abs(reservation.betrag_cents)
+        account = await self.get_or_create_account(partner_id)
+
+        if account.billing_typ == "credits":
+            account.guthaben_cents += reserviert_cents
+            saldo = account.guthaben_cents
+        else:
+            saldo = account.guthaben_cents
+
+        refund = ApiCreditTransaction(
+            billing_account_id=account.id,
+            typ="reservation_cancel",
+            betrag_cents=reserviert_cents,
+            saldo_danach_cents=saldo,
+            beschreibung=beschreibung,
+            referenz_typ="recherche_auftrag",
+            referenz_id=referenz_id,
+            erstellt_von="system",
+        )
+        self.db.add(refund)
+        await self.db.flush()
+
+        logger.info(
+            f"Reservation cancelled: partner={partner_id} "
+            f"refund={reserviert_cents}ct balance={saldo}ct"
+        )
+        return refund
+
     # ---- Internal helpers ----
 
     async def _get_monthly_spend_cents(self, partner_id: str) -> int:

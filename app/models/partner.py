@@ -24,6 +24,11 @@ class ApiPartner(Base):
     role = Column(String(20), nullable=False, default="partner")  # "partner" | "superadmin"
     kosten_geoapi_pro_einwohner = Column(Float, nullable=False, default=0.0001)  # Cost per inhabitant for GeoAPI queries
     kosten_unternehmen_pro_abfrage = Column(Float, nullable=False, default=0.001)  # Cost per company query (0.1 Cent)
+    # Recherche cost per order (partner-overridable)
+    kosten_recherche_grundgebuehr = Column(Float, nullable=False, default=0.50)   # 50ct base fee per order
+    kosten_recherche_standard = Column(Float, nullable=False, default=0.05)       # 5ct/hit (DataForSEO)
+    kosten_recherche_premium = Column(Float, nullable=False, default=0.12)        # 12ct/hit (Google Places)
+    kosten_recherche_komplett = Column(Float, nullable=False, default=0.18)       # 18ct/hit (both sources)
     zugelassene_laender_ids = Column(JSON, nullable=True, default=list)  # List of allowed country UUIDs (empty = all)
     rate_limit_pro_minute = Column(Integer, nullable=False, default=60)
     rate_limit_pro_stunde = Column(Integer, nullable=False, default=1000)

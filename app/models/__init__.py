@@ -62,6 +62,23 @@ from app.models.branche import (
     BrnKostenModell,
     BrnGruppenPlattform,
 )
+from app.models.recherche import (
+    RecherchAuftrag,
+    RecherchRohErgebnis,
+    RecherchAuftragStatus,
+    RecherchQualitaetsStufe,
+)
+from app.models.prod import (
+    ProdWerteliste,
+    ProdSortiment,
+    ProdEigenschaft,
+    ProdSortimentEigenschaft,
+    ProdKategorie,
+    ProdArtikel,
+    ProdArtikelSortiment,
+    ProdArtikelEigenschaft,
+    ProdArtikelBild,
+)
 
 __all__ = [
     "Base",
@@ -126,4 +143,20 @@ __all__ = [
     "BrnAnmeldeArt",
     "BrnKostenModell",
     "BrnGruppenPlattform",
+    # Recherche Models
+    "RecherchAuftrag",
+    "RecherchRohErgebnis",
+    # Recherche Enums
+    "RecherchAuftragStatus",
+    "RecherchQualitaetsStufe",
+    # Product Models
+    "ProdWerteliste",
+    "ProdSortiment",
+    "ProdEigenschaft",
+    "ProdSortimentEigenschaft",
+    "ProdKategorie",
+    "ProdArtikel",
+    "ProdArtikelSortiment",
+    "ProdArtikelEigenschaft",
+    "ProdArtikelBild",
 ]

@@ -42,5 +42,8 @@ Thumbs.db
 *.log
 logs/
 
+# Uploads (import files)
+uploads/
+
 # Playwright MCP
 .playwright-mcp/

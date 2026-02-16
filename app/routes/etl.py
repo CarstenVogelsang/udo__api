@@ -38,6 +38,7 @@ from app.schemas.etl import (
     BulkFieldMappingResponse,
     TableColumnInfo,
     TableSchemaResponse,
+    FieldAliasUpdate,
 )
 
 # Tables available for ETL mapping (security whitelist)
@@ -46,6 +47,8 @@ ALLOWED_ETL_TABLES = {
     'com_unternehmen_organisation', 'com_external_id',
     'com_unternehmen_identifikation',
     'geo_land', 'geo_bundesland', 'geo_kreis', 'geo_ort', 'geo_ortsteil',
+    # Produktdaten (Kern-Felder, EAV-Tabellen werden vom ProdImportService behandelt)
+    'prod_artikel', 'prod_kategorie', 'prod_artikel_bild',
 }
 
 router = APIRouter(prefix="/etl", tags=["ETL"])
@@ -386,6 +389,10 @@ async def bulk_replace_field_mappings(
         fm = EtlFieldMapping(
             table_mapping_id=mapping_id,
             source_field=item.source_field,
+            source_field_aliases=(
+                json.dumps(item.source_field_aliases)
+                if item.source_field_aliases else None
+            ),
             target_field=item.target_field,
             transform=item.transform,
             is_required=item.is_required,
@@ -413,6 +420,56 @@ async def bulk_replace_field_mappings(
             EtlFieldMappingResponse.model_validate(fm) for fm in new_mappings
         ],
     )
+
+
+# ============ Field Alias Management ============
+
+@router.patch(
+    "/field-mappings/{mapping_id}/aliases",
+    response_model=EtlFieldMappingResponse,
+)
+async def update_field_aliases(
+    mapping_id: str,
+    data: FieldAliasUpdate,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add or remove source field aliases on a field mapping."""
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(EtlFieldMapping).where(EtlFieldMapping.id == mapping_id)
+    )
+    fm = result.scalar_one_or_none()
+    if not fm:
+        raise HTTPException(404, "Feld-Mapping nicht gefunden")
+
+    # Parse current aliases
+    current: list[str] = []
+    if fm.source_field_aliases:
+        try:
+            current = json.loads(fm.source_field_aliases)
+        except (json.JSONDecodeError, TypeError):
+            current = []
+
+    # Apply removals
+    if data.remove:
+        remove_lower = {r.lower() for r in data.remove}
+        current = [a for a in current if a.lower() not in remove_lower]
+
+    # Apply additions (skip duplicates, case-insensitive)
+    existing_lower = {a.lower() for a in current}
+    existing_lower.add(fm.source_field.lower())  # prevent alias == source_field
+    for alias in data.add:
+        if alias.strip() and alias.strip().lower() not in existing_lower:
+            current.append(alias.strip())
+            existing_lower.add(alias.strip().lower())
+
+    fm.source_field_aliases = json.dumps(current) if current else None
+    await db.flush()
+    await db.commit()
+    await db.refresh(fm)
+
+    return EtlFieldMappingResponse.model_validate(fm)
 
 
 # ============ Schema Discovery ============

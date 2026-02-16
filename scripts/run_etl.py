@@ -106,9 +106,9 @@ def get_legacy_connection():
     )
 
 
-def get_sqlite_session():
-    """Creates a synchronous SQLite session."""
-    db_url = settings.sqlite_database_url.replace("+aiosqlite", "")
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -121,7 +121,7 @@ class EtlRunner:
     """Executes ETL imports based on database configuration."""
 
     def __init__(self, dry_run: bool = False):
-        self.session, self.engine = get_sqlite_session()
+        self.session, self.engine = get_db_session()
         self.dry_run = dry_run
         self._fk_caches: dict[str, dict[Any, str]] = {}
 

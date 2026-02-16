@@ -9,6 +9,7 @@ Features:
 - GeoOrt resolution by PLZ
 - Batch commits for large imports
 """
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -26,11 +27,41 @@ from app.models.etl import (
     EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog, EtlImportRecord,
 )
 from app.models.geo import Base, generate_uuid
-from app.services.etl import TRANSFORMS, EtlService
+from app.services.etl import TRANSFORMS, ROW_TRANSFORMS, EtlService
 
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 500
+
+# Generic email domains that should NOT be used for deduplication.
+# Two different companies may both use gmail.com — that doesn't make them the same.
+GENERIC_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "yahoo.de", "hotmail.com", "hotmail.de",
+    "outlook.com", "outlook.de", "live.com", "live.de",
+    "web.de", "gmx.de", "gmx.net", "gmx.at", "gmx.ch",
+    "t-online.de", "aol.com", "icloud.com", "me.com",
+    "freenet.de", "arcor.de", "online.de", "telekom.de",
+    "mail.de", "email.de", "posteo.de", "protonmail.com",
+    "yandex.com", "zoho.com",
+}
+
+# Transforms that produce valid output from None/empty values.
+# These run BEFORE the default_value/None short-circuit so they always execute.
+NULL_SAFE_TRANSFORMS = {
+    "x_to_bool", "invert_x_flag", "map_store_typ",
+    "map_bonitaet_score", "map_loeschkennzeichen",
+}
+
+# Implicit FK resolution: target fields that need UUID lookup but don't use
+# explicit fk_lookup: transforms. Maps target_field -> (table, lookup_field, filter).
+# Optional 3rd element is a SQL WHERE clause for filtered lookups.
+IMPLICIT_FK_MAP = {
+    "marke_id": ("com_marke", "name"),
+    "serie_id": ("com_serie", "name"),
+    "dienstleistung_id": ("com_dienstleistung", "name"),
+    "sprache_id": ("bas_sprache", "code"),
+    "status_id": ("bas_status", "code", "kontext = 'unternehmen'"),
+}
 
 
 class ExcelImportService:
@@ -115,6 +146,7 @@ class ExcelImportService:
             "kontakte_skipped": 0,
             "junction_created": 0,
             "junction_skipped": 0,
+            "junction_details": {},
             "errors": 0,
             "error_details": [],
         }
@@ -160,6 +192,128 @@ class ExcelImportService:
         stats["dry_run"] = dry_run
         return stats
 
+    # ============ Preview (single row, no DB writes) ============
+
+    async def preview_row(self, source_name: str, source_row: dict[str, Any]) -> dict:
+        """Preview transform results for a single row without database writes.
+
+        Applies all field mappings, transforms, and FK lookups for every target
+        table, then returns a structured result showing source → transform → target
+        for each field.
+        """
+        # 1. Load config
+        (source, u_mapping, k_mapping, u_fields, k_fields,
+         extid_fields, bizid_fields, junction_configs) = await self._load_config(source_name)
+
+        # 2. Collect all field mappings and build FK caches
+        all_fields = u_fields + k_fields
+        for _jm, jf in junction_configs:
+            all_fields += jf
+        await self._build_fk_caches(all_fields)
+
+        # 3. Build table groups: [(table_name, field_mappings, extid_fields, bizid_fields)]
+        table_groups: list[tuple[str, list[EtlFieldMapping], list, list]] = [
+            ("com_unternehmen", u_fields, extid_fields, bizid_fields),
+            ("com_kontakt", k_fields, [], []),
+        ]
+        for jm, jf in junction_configs:
+            table_groups.append((jm.target_table, jf, [], []))
+
+        # 4. Process each table
+        tables_result = {}
+        for table_name, fields, ext_fields, biz_fields in table_groups:
+            field_results = []
+
+            # Regular field mappings
+            transformed = self._apply_field_mappings(source_row, fields)
+            # FK resolution (modifies transformed in-place)
+            await self._resolve_fk_lookups(transformed, fields)
+            self._resolve_implicit_fks(transformed, fields)
+
+            for fm in fields:
+                source_value = self._get_value_with_aliases(
+                    source_row, fm.source_field, fm.source_field_aliases
+                )
+                target_value = transformed.get(fm.target_field)
+
+                # Build label for FK values (reverse-lookup)
+                target_label = None
+                if target_value and fm.target_field.endswith("_id"):
+                    target_label = self._reverse_fk_label(fm.target_field, target_value)
+
+                # Determine status
+                source_empty = (
+                    source_value is None
+                    or (isinstance(source_value, str) and not source_value.strip())
+                )
+                has_output = target_value is not None and str(target_value).strip() != ""
+
+                if fm.transform and fm.transform.startswith("ref_current:"):
+                    status = "placeholder"
+                    target_value = f"[ref_current:{fm.transform.split(':', 1)[1]}]"
+                elif source_empty and has_output:
+                    status = "default"
+                elif source_empty and not has_output:
+                    status = "empty"
+                elif not source_empty and has_output:
+                    status = "transformed"
+                else:
+                    status = "skipped"
+
+                field_results.append({
+                    "source_field": fm.source_field,
+                    "source_value": source_value,
+                    "transform": fm.transform or None,
+                    "target_field": fm.target_field,
+                    "target_value": target_value,
+                    "target_label": target_label,
+                    "update_rule": fm.update_rule or "always",
+                    "status": status,
+                })
+
+            # External ID fields
+            for src_field, ext_source, ext_type, *rest in ext_fields:
+                aliases = rest[0] if rest else None
+                val = self._get_value_with_aliases(source_row, src_field, aliases)
+                field_results.append({
+                    "source_field": src_field,
+                    "source_value": val,
+                    "transform": f"external_id:{ext_source}.{ext_type}",
+                    "target_field": "_extid",
+                    "target_value": f"[ExtID: {ext_source}.{ext_type} = {val}]" if val else None,
+                    "target_label": None,
+                    "update_rule": "always",
+                    "status": "placeholder" if val else "empty",
+                })
+
+            # Business ID fields
+            for src_field, ident_type, *rest in biz_fields:
+                aliases = rest[0] if rest else None
+                val = self._get_value_with_aliases(source_row, src_field, aliases)
+                field_results.append({
+                    "source_field": src_field,
+                    "source_value": val,
+                    "transform": f"business_id:{ident_type}",
+                    "target_field": "_bizid",
+                    "target_value": f"[BizID: {ident_type} = {val}]" if val else None,
+                    "target_label": None,
+                    "update_rule": "always",
+                    "status": "placeholder" if val else "empty",
+                })
+
+            tables_result[table_name] = {"fields": field_results}
+
+        return {"tables": tables_result}
+
+    def _reverse_fk_label(self, target_field: str, uuid_value: str) -> str | None:
+        """Reverse-lookup a UUID to find a human-readable label."""
+        # Search all FK caches for a matching UUID
+        for cache_key, cache in self._fk_caches.items():
+            for label, cached_id in cache.items():
+                if str(cached_id) == str(uuid_value):
+                    return str(label)
+        return None
+
     async def _process_row(
         self,
         row: dict[str, Any],
@@ -185,6 +339,9 @@ class ExcelImportService:
             plz = u_data["geo_ort_id"]  # At this point it's the normalized PLZ string
             u_data["geo_ort_id"] = self._plz_cache.get(plz)
 
+        # Resolve implicit FKs (e.g., sprache_id code -> UUID)
+        self._resolve_implicit_fks(u_data, u_fields)
+
         # Skip if no meaningful data
         if not u_data.get("kurzname") and not u_data.get("firmierung"):
             stats["unternehmen_skipped"] += 1
@@ -199,8 +356,20 @@ class ExcelImportService:
         if dry_run:
             if existing_id:
                 stats["unternehmen_updated"] += 1
+                unternehmen_id = existing_id
             else:
                 stats["unternehmen_created"] += 1
+                unternehmen_id = str(generate_uuid())  # Dummy ID for ref_context
+
+            # Process junctions in dry_run mode
+            if junction_configs:
+                ref_context = {"id": unternehmen_id, **u_data}
+                for jt_mapping, jt_fields in junction_configs:
+                    await self._process_junction_row(
+                        row, jt_mapping, jt_fields, ref_context, stats,
+                        dry_run=True,
+                    )
+
             # Check if kontakt would be created
             k_data = self._apply_field_mappings(row, k_fields)
             if k_data.get("vorname") and k_data.get("nachname"):
@@ -264,6 +433,31 @@ class ExcelImportService:
             entity_id=kontakt_id,
             action=k_action,
         ))
+
+    # ============ Alias Helper ============
+
+    @staticmethod
+    def _get_value_with_aliases(
+        row: dict[str, Any], source_field: str, aliases_json: str | list | None
+    ) -> Any:
+        """Get value from row, trying source_field first, then aliases."""
+        value = row.get(source_field)
+        if value is not None:
+            return value
+        if not aliases_json:
+            return None
+        if isinstance(aliases_json, str):
+            try:
+                aliases = json.loads(aliases_json)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        else:
+            aliases = aliases_json or []
+        for alias in aliases:
+            value = row.get(alias.strip())
+            if value is not None:
+                return value
+        return None
 
     # ============ Excel Parsing ============
 
@@ -352,17 +546,17 @@ class ExcelImportService:
         # Separate external_id and business_id fields from regular fields
         u_fields = []
         extid_fields = []
-        bizid_fields = []  # [(source_field, ident_type)]
+        bizid_fields = []  # [(source_field, ident_type, aliases)]
         for f in u_fields_all:
             if f.transform and f.transform.startswith("external_id:"):
                 # Parse "external_id:smartmail.subscriber_id"
                 parts = f.transform.split(":", 1)[1]
                 src_name, id_type = parts.split(".", 1)
-                extid_fields.append((f.source_field, src_name, id_type))
+                extid_fields.append((f.source_field, src_name, id_type, f.source_field_aliases))
             elif f.transform and f.transform.startswith("business_id:"):
                 # Parse "business_id:ust_id"
                 ident_type = f.transform.split(":", 1)[1]
-                bizid_fields.append((f.source_field, ident_type))
+                bizid_fields.append((f.source_field, ident_type, f.source_field_aliases))
             else:
                 u_fields.append(f)
 
@@ -397,11 +591,28 @@ class ExcelImportService:
                 result[fm.target_field] = ref_context.get(field) if ref_context else None
                 continue
 
-            value = row.get(fm.source_field)
+            value = self._get_value_with_aliases(
+                row, fm.source_field, fm.source_field_aliases
+            )
 
             # Coerce to string (openpyxl returns int/float for numeric cells)
             if value is not None and not isinstance(value, str):
                 value = str(value).strip()
+
+            # NULL-safe transforms: run even when value is None/empty
+            if fm.transform:
+                transform_name = fm.transform.split(":")[0]
+                if transform_name in NULL_SAFE_TRANSFORMS:
+                    if transform_name in TRANSFORMS:
+                        result[fm.target_field] = TRANSFORMS[transform_name](value)
+                    elif transform_name in ROW_TRANSFORMS:
+                        transform_params = (
+                            fm.transform.split(":", 1)[1] if ":" in fm.transform else None
+                        )
+                        result[fm.target_field] = ROW_TRANSFORMS[transform_name](
+                            value, row=row, params=transform_params
+                        )
+                    continue
 
             # Apply default if value is None/empty
             if value is None or not value.strip():
@@ -420,6 +631,14 @@ class ExcelImportService:
                 pass  # Handled separately (geo_ort_id by PLZ)
             elif fm.transform and fm.transform.startswith("fk_lookup_or_create:"):
                 pass  # Resolved async in _resolve_fk_or_create()
+            elif fm.transform:
+                # Check for ROW_TRANSFORMS (syntax: "transform_name:param")
+                transform_name = fm.transform.split(":")[0]
+                transform_params = fm.transform.split(":", 1)[1] if ":" in fm.transform else None
+                if transform_name in ROW_TRANSFORMS:
+                    value = ROW_TRANSFORMS[transform_name](
+                        value, row=row, params=transform_params
+                    )
 
             result[fm.target_field] = value
 
@@ -442,7 +661,9 @@ class ExcelImportService:
                 continue
 
             table, field = lookup_spec.split(".", 1)
-            value = source_row.get(fm.source_field)
+            value = self._get_value_with_aliases(
+                source_row, fm.source_field, fm.source_field_aliases
+            )
 
             # Coerce to string
             if value is not None and not isinstance(value, str):
@@ -457,6 +678,80 @@ class ExcelImportService:
             )
             data[fm.target_field] = resolved_id
 
+    async def _resolve_fk_lookups(
+        self,
+        data: dict[str, Any],
+        field_mappings: list[EtlFieldMapping],
+    ):
+        """Resolve fk_lookup: transforms (lookup only, no auto-create)."""
+        for fm in field_mappings:
+            if not fm.transform or not fm.transform.startswith("fk_lookup:"):
+                continue
+            spec = fm.transform.split(":", 1)[1]
+            if "." not in spec:
+                continue
+            table, field = spec.split(".", 1)
+            cache_key = f"{table}.{field}"
+            value = data.get(fm.target_field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                data[fm.target_field] = None
+                continue
+            # Cache lookup
+            cache = self._fk_caches.get(cache_key, {})
+            lookup_val = str(value).strip()
+            if lookup_val in cache:
+                data[fm.target_field] = str(cache[lookup_val])
+            else:
+                # DB fallback
+                query = text(f"SELECT id FROM {table} WHERE {field} = :val LIMIT 1")
+                result = await self.db.execute(query, {"val": lookup_val})
+                row = result.fetchone()
+                if row:
+                    resolved_id = str(row[0])
+                    data[fm.target_field] = resolved_id
+                    # Update cache
+                    self._fk_caches.setdefault(cache_key, {})[lookup_val] = resolved_id
+                else:
+                    data[fm.target_field] = None
+
+    def _resolve_implicit_fks(
+        self,
+        data: dict[str, Any],
+        field_mappings: list[EtlFieldMapping],
+    ):
+        """Resolve implicit FK fields (boolean gate + code->UUID mappings).
+
+        Handles two patterns:
+        1. Boolean gate: x_to_bool=True + default_value -> FK lookup UUID
+        2. Code mapping: map_sprache="de" -> UUID from bas_sprache.code
+        """
+        for fm in field_mappings:
+            target = fm.target_field
+            if target not in IMPLICIT_FK_MAP:
+                continue
+            value = data.get(target)
+            if value is None:
+                continue
+
+            fk_spec = IMPLICIT_FK_MAP[target]
+            table, field = fk_spec[0], fk_spec[1]
+            fk_filter = fk_spec[2] if len(fk_spec) > 2 else None
+            cache_key = f"{table}.{field}" + (f":{fk_filter}" if fk_filter else "")
+            cache = self._fk_caches.get(cache_key, {})
+
+            # Boolean gate: True -> use default_value as lookup key, False -> None
+            if isinstance(value, bool):
+                if value and fm.default_value:
+                    lookup_val = fm.default_value
+                else:
+                    data[target] = None
+                    continue
+            else:
+                lookup_val = str(value)
+
+            resolved = cache.get(lookup_val)
+            data[target] = str(resolved) if resolved else None
+
     # ============ Junction Table Processing ============
 
     async def _process_junction_row(
@@ -466,25 +761,41 @@ class ExcelImportService:
         jt_fields: list[EtlFieldMapping],
         ref_context: dict[str, Any],
         stats: dict,
+        dry_run: bool = False,
     ):
         """Process a junction table mapping for one row (e.g., com_unternehmen_organisation)."""
         target_table = jt_mapping.target_table
+        table_stats = stats.setdefault("junction_details", {}).setdefault(
+            target_table, {"created": 0, "skipped": 0}
+        )
 
         # Apply field mappings with ref_current context
         jt_data = self._apply_field_mappings(row, jt_fields, ref_context=ref_context)
 
-        # Resolve fk_lookup_or_create transforms
+        # Resolve FK transforms (both patterns)
         await self._resolve_fk_or_create(jt_data, jt_fields, row)
+        await self._resolve_fk_lookups(jt_data, jt_fields)
+        self._resolve_implicit_fks(jt_data, jt_fields)
 
-        # Skip if any required FK is None (e.g., no organisation resolved)
+        # Skip if any value is None (e.g., x_to_bool=False, no FK resolved)
         if any(v is None for v in jt_data.values()):
             stats["junction_skipped"] += 1
+            table_stats["skipped"] += 1
             return
 
-        # Check for existing record (dedup by all non-id columns)
+        if dry_run:
+            stats["junction_created"] += 1
+            table_stats["created"] += 1
+            return
+
+        # Check for existing record (dedup by FK reference fields only)
+        dedup_cols = {k: v for k, v in jt_data.items() if k.endswith("_id")}
+        if not dedup_cols:
+            dedup_cols = jt_data  # Fallback: use all fields
+
         where_parts = []
         params = {}
-        for col, val in jt_data.items():
+        for col, val in dedup_cols.items():
             where_parts.append(f"{col} = :{col}")
             params[col] = val
 
@@ -494,6 +805,7 @@ class ExcelImportService:
         existing = await self.db.execute(check_query, params)
         if existing.fetchone():
             stats["junction_skipped"] += 1
+            table_stats["skipped"] += 1
             return
 
         # Insert new junction record
@@ -501,15 +813,17 @@ class ExcelImportService:
         now = datetime.utcnow()
         columns = ["id"] + list(jt_data.keys()) + ["erstellt_am"]
         placeholders = [":id"] + [f":{k}" for k in jt_data.keys()] + [":erstellt_am"]
-        params["id"] = new_id
-        params["erstellt_am"] = now
+        insert_params = dict(jt_data)
+        insert_params["id"] = new_id
+        insert_params["erstellt_am"] = now
 
         insert_query = text(
             f"INSERT INTO {target_table} ({', '.join(columns)}) "
             f"VALUES ({', '.join(placeholders)})"
         )
-        await self.db.execute(insert_query, params)
+        await self.db.execute(insert_query, insert_params)
         stats["junction_created"] += 1
+        table_stats["created"] += 1
 
         # Track junction import record
         self.db.add(EtlImportRecord(
@@ -579,21 +893,46 @@ class ExcelImportService:
         )
 
     async def _build_fk_caches(self, field_mappings: list[EtlFieldMapping]):
-        """Pre-build FK lookup caches for fk_lookup and fk_lookup_or_create transforms."""
+        """Pre-build FK lookup caches for fk_lookup, fk_lookup_or_create, and implicit FKs."""
+        built = set()
         for fm in field_mappings:
-            if not fm.transform:
-                continue
-            for prefix in ("fk_lookup:", "fk_lookup_or_create:"):
-                if fm.transform.startswith(prefix):
-                    spec = fm.transform[len(prefix):]
-                    if "." in spec:
-                        table, field = spec.split(".", 1)
+            # Explicit fk_lookup: / fk_lookup_or_create: transforms
+            if fm.transform:
+                for prefix in ("fk_lookup:", "fk_lookup_or_create:"):
+                    if fm.transform.startswith(prefix):
+                        spec = fm.transform[len(prefix):]
+                        if "." in spec:
+                            table, field = spec.split(".", 1)
+                            cache_key = f"{table}.{field}"
+                            if cache_key not in built:
+                                await self._etl_service.build_fk_lookup_cache(table, field)
+                                if cache_key in self._etl_service._fk_cache:
+                                    self._fk_caches[cache_key] = self._etl_service._fk_cache[cache_key]
+                                built.add(cache_key)
+                        break
+
+            # Implicit FK fields (boolean gate, sprache_id, status_id, etc.)
+            if fm.target_field in IMPLICIT_FK_MAP:
+                fk_spec = IMPLICIT_FK_MAP[fm.target_field]
+                table, field = fk_spec[0], fk_spec[1]
+                fk_filter = fk_spec[2] if len(fk_spec) > 2 else None
+                cache_key = f"{table}.{field}" + (f":{fk_filter}" if fk_filter else "")
+                if cache_key not in built:
+                    if fk_filter:
+                        # Filtered lookup: build cache with WHERE clause
+                        query = text(
+                            f"SELECT {field}, id FROM {table} "
+                            f"WHERE {field} IS NOT NULL AND {fk_filter}"
+                        )
+                        result = await self.db.execute(query)
+                        self._fk_caches[cache_key] = {
+                            row[0]: row[1] for row in result.fetchall()
+                        }
+                    else:
                         await self._etl_service.build_fk_lookup_cache(table, field)
-                        # Copy into shared caches
-                        cache_key = f"{table}.{field}"
                         if cache_key in self._etl_service._fk_cache:
                             self._fk_caches[cache_key] = self._etl_service._fk_cache[cache_key]
-                    break
+                    built.add(cache_key)
 
     async def _build_plz_cache(self):
         """Pre-load PLZ -> GeoOrt.id mapping."""
@@ -653,8 +992,9 @@ class ExcelImportService:
         6. Firmierung
         """
         # Stage 1: External ID match
-        for src_field, ext_source, ext_type in extid_fields:
-            ext_val = source_row.get(src_field)
+        for src_field, ext_source, ext_type, *rest in extid_fields:
+            aliases = rest[0] if rest else None
+            ext_val = self._get_value_with_aliases(source_row, src_field, aliases)
             if ext_val is not None and str(ext_val).strip():
                 cache_key = f"{ext_source}:{ext_type}:{str(ext_val).strip()}"
                 if cache_key in self._extid_cache:
@@ -662,17 +1002,19 @@ class ExcelImportService:
 
         # Stage 2: Business Identifier match (USt-ID, DUNS, etc.)
         if bizid_fields:
-            for src_field, ident_type in bizid_fields:
-                val = source_row.get(src_field)
+            for src_field, ident_type, *rest in bizid_fields:
+                aliases = rest[0] if rest else None
+                val = self._get_value_with_aliases(source_row, src_field, aliases)
                 if val is not None and str(val).strip():
                     cache_key = f"{ident_type}:{str(val).strip()}"
                     if cache_key in self._ident_cache:
                         return self._ident_cache[cache_key], f"business_id:{ident_type}"
 
-        # Stage 3: Email match
+        # Stage 3: Email match (skip generic domains like gmail.com)
         if u_data.get("email"):
             key = u_data["email"].strip().lower()
-            if key in self._email_cache:
+            domain = key.split("@")[-1] if "@" in key else ""
+            if domain not in GENERIC_EMAIL_DOMAINS and key in self._email_cache:
                 return self._email_cache[key], "email"
 
         # Stage 4: Website match
@@ -834,11 +1176,12 @@ class ExcelImportService:
         entity_type: str,
         entity_id: str,
         source_row: dict[str, Any],
-        extid_fields: list[tuple[str, str, str]],
+        extid_fields: list[tuple],
     ):
         """Save external IDs from source row to com_external_id."""
-        for src_field, ext_source, ext_type in extid_fields:
-            ext_val = source_row.get(src_field)
+        for src_field, ext_source, ext_type, *rest in extid_fields:
+            aliases = rest[0] if rest else None
+            ext_val = self._get_value_with_aliases(source_row, src_field, aliases)
             if ext_val is None or not str(ext_val).strip():
                 continue
 
@@ -872,11 +1215,12 @@ class ExcelImportService:
         self,
         unternehmen_id: str,
         source_row: dict[str, Any],
-        bizid_fields: list[tuple[str, str]],
+        bizid_fields: list[tuple],
     ):
         """Save business identifiers (USt-ID, DUNS, etc.) to com_unternehmen_identifikation."""
-        for src_field, ident_type in bizid_fields:
-            value = source_row.get(src_field)
+        for src_field, ident_type, *rest in bizid_fields:
+            aliases = rest[0] if rest else None
+            value = self._get_value_with_aliases(source_row, src_field, aliases)
             if value is None or not str(value).strip():
                 continue
 

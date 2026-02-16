@@ -17,7 +17,7 @@
 ### Scripts
 
 1. **`scripts/analyze_legacy_db.py`** - Analysiert Tabellenstruktur
-2. **`scripts/migrate_data.py`** - Migriert Daten nach SQLite
+2. **`scripts/migrate_data.py`** - Migriert Daten nach PostgreSQL
 
 ### Ausführung
 

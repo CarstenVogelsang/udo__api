@@ -1,0 +1,212 @@
+{
+  "sortimente": [
+    {"code": "moba", "name": "Modellbahn", "beschreibung": "Modelleisenbahnen und Zubehör", "sortierung": 1},
+    {"code": "sammler", "name": "Sammlermodelle", "beschreibung": "Sammlerfahrzeuge und -modelle", "sortierung": 2}
+  ],
+  "eigenschaften": [
+    {"code": "spurweite", "name": "Spurweite", "daten_typ": "werteliste", "werteliste_typ": "spurweite", "sortierung": 1},
+    {"code": "stromsystem", "name": "Stromsystem", "daten_typ": "werteliste", "werteliste_typ": "stromsystem", "sortierung": 2},
+    {"code": "modellkategorie", "name": "Modellkategorie", "daten_typ": "werteliste", "werteliste_typ": "modellkategorie", "sortierung": 3},
+    {"code": "modelltyp", "name": "Modelltyp", "daten_typ": "werteliste", "werteliste_typ": "modelltyp", "sortierung": 4},
+    {"code": "epoche", "name": "Epoche", "daten_typ": "werteliste", "werteliste_typ": "epoche", "sortierung": 5},
+    {"code": "bahngesellschaft", "name": "Bahngesellschaft", "daten_typ": "werteliste", "werteliste_typ": "bahngesellschaft", "sortierung": 6},
+    {"code": "land_moba", "name": "Land (Moba)", "daten_typ": "werteliste", "werteliste_typ": "land_moba", "sortierung": 7},
+    {"code": "digitalschnittstelle", "name": "Digitalschnittstelle", "daten_typ": "werteliste", "werteliste_typ": "digitalschnittstelle", "sortierung": 8},
+    {"code": "kupplungsaufnahme", "name": "Kupplungsaufnahme", "daten_typ": "werteliste", "werteliste_typ": "kupplungsaufnahme", "sortierung": 9},
+    {"code": "beleuchtung", "name": "Beleuchtung", "daten_typ": "werteliste", "werteliste_typ": "beleuchtung", "sortierung": 10},
+    {"code": "vorbildtext", "name": "Vorbildtext", "daten_typ": "text", "sortierung": 11},
+    {"code": "mindestradius_mm", "name": "Mindestradius", "daten_typ": "ganzzahl", "einheit": "mm", "sortierung": 12},
+    {"code": "laenge_ueber_puffer_mm", "name": "Länge über Puffer", "daten_typ": "ganzzahl", "einheit": "mm", "sortierung": 13},
+    {"code": "angetriebene_achsen", "name": "Angetriebene Achsen", "daten_typ": "ganzzahl", "sortierung": 14},
+    {"code": "digitaldecoder", "name": "Digitaldecoder", "daten_typ": "bool", "sortierung": 15},
+    {"code": "sound", "name": "Sound", "daten_typ": "bool", "sortierung": 16},
+    {"code": "rauchgenerator", "name": "Rauchgenerator", "daten_typ": "bool", "sortierung": 17},
+    {"code": "pufferkondensator", "name": "Pufferkondensator", "daten_typ": "bool", "sortierung": 18},
+    {"code": "innenbeleuchtung", "name": "Innenbeleuchtung", "daten_typ": "bool", "sortierung": 19},
+    {"code": "qualitaetsstufe", "name": "Qualitätsstufe", "daten_typ": "werteliste", "werteliste_typ": "qualitaetsstufe", "sortierung": 20},
+    {"code": "material", "name": "Material", "daten_typ": "werteliste", "werteliste_typ": "material", "sortierung": 21},
+    {"code": "massstab", "name": "Maßstab", "daten_typ": "werteliste", "werteliste_typ": "massstab", "sortierung": 22},
+    {"code": "farbe", "name": "Farbe", "daten_typ": "text", "sortierung": 23},
+    {"code": "originalmodell", "name": "Originalmodell", "daten_typ": "text", "sortierung": 24},
+    {"code": "originalmarke", "name": "Originalmarke", "daten_typ": "text", "sortierung": 25},
+    {"code": "baujahr_original", "name": "Baujahr Original", "daten_typ": "ganzzahl", "sortierung": 26},
+    {"code": "abnehmbares_dach", "name": "Abnehmbares Dach", "daten_typ": "bool", "sortierung": 27},
+    {"code": "tueren_oeffenbar", "name": "Türen öffenbar", "daten_typ": "bool", "sortierung": 28},
+    {"code": "motorhaube_oeffenbar", "name": "Motorhaube öffenbar", "daten_typ": "bool", "sortierung": 29},
+    {"code": "lenkung_funktionsfaehig", "name": "Lenkung funktionsfähig", "daten_typ": "bool", "sortierung": 30},
+    {"code": "federung", "name": "Federung", "daten_typ": "bool", "sortierung": 31},
+    {"code": "edition", "name": "Edition", "daten_typ": "text", "sortierung": 32},
+    {"code": "limitierung_stueckzahl", "name": "Limitierung Stückzahl", "daten_typ": "ganzzahl", "sortierung": 33},
+    {"code": "spur_h0", "name": "Spur H0 kompatibel", "daten_typ": "bool", "sortierung": 40},
+    {"code": "spur_n", "name": "Spur N kompatibel", "daten_typ": "bool", "sortierung": 41},
+    {"code": "spur_tt", "name": "Spur TT kompatibel", "daten_typ": "bool", "sortierung": 42},
+    {"code": "spur_z", "name": "Spur Z kompatibel", "daten_typ": "bool", "sortierung": 43},
+    {"code": "spur_1g", "name": "Spur 1/G kompatibel", "daten_typ": "bool", "sortierung": 44},
+    {"code": "spur_0", "name": "Spur 0 kompatibel", "daten_typ": "bool", "sortierung": 45},
+    {"code": "automarke", "name": "Automarke", "daten_typ": "text", "sortierung": 50},
+    {"code": "warengruppe_code", "name": "Warengruppe (Hersteller-Code)", "daten_typ": "text", "sortierung": 51}
+  ],
+  "sortiment_blueprints": {
+    "moba": ["spurweite", "stromsystem", "modellkategorie", "modelltyp", "epoche", "bahngesellschaft", "land_moba", "digitalschnittstelle", "kupplungsaufnahme", "beleuchtung", "vorbildtext", "mindestradius_mm", "laenge_ueber_puffer_mm", "angetriebene_achsen", "digitaldecoder", "sound", "rauchgenerator", "pufferkondensator", "innenbeleuchtung", "massstab", "spur_h0", "spur_n", "spur_tt", "spur_z", "spur_1g", "spur_0", "automarke", "warengruppe_code"],
+    "sammler": ["qualitaetsstufe", "material", "massstab", "farbe", "originalmodell", "originalmarke", "baujahr_original", "abnehmbares_dach", "tueren_oeffenbar", "motorhaube_oeffenbar", "lenkung_funktionsfaehig", "federung", "edition", "limitierung_stueckzahl"]
+  },
+  "wertelisten": {
+    "artikelstatus": [
+      {"code": "ANK", "bezeichnung": "Ankündigung", "sortierung": 1},
+      {"code": "NEU", "bezeichnung": "Neuheit", "sortierung": 2},
+      {"code": "AKT", "bezeichnung": "Aktiv", "sortierung": 3},
+      {"code": "LIM", "bezeichnung": "Limitiert", "sortierung": 4},
+      {"code": "SAI", "bezeichnung": "Saisonware", "sortierung": 5},
+      {"code": "AUS", "bezeichnung": "Auslaufend", "sortierung": 6},
+      {"code": "STR", "bezeichnung": "Gestrichen", "sortierung": 7},
+      {"code": "REA", "bezeichnung": "Reaktiviert", "sortierung": 8}
+    ],
+    "spurweite": [
+      {"code": "H0", "bezeichnung": "H0 (1:87)", "sortierung": 1},
+      {"code": "H0E", "bezeichnung": "H0e (1:87 Schmalspur)", "sortierung": 2},
+      {"code": "H0M", "bezeichnung": "H0m (1:87 Meterspur)", "sortierung": 3},
+      {"code": "N", "bezeichnung": "N (1:160)", "sortierung": 4},
+      {"code": "TT", "bezeichnung": "TT (1:120)", "sortierung": 5},
+      {"code": "Z", "bezeichnung": "Z (1:220)", "sortierung": 6},
+      {"code": "1", "bezeichnung": "Spur 1 (1:32)", "sortierung": 7},
+      {"code": "0", "bezeichnung": "Spur 0 (1:45)", "sortierung": 8},
+      {"code": "LGB", "bezeichnung": "LGB/G (1:22.5)", "sortierung": 9}
+    ],
+    "stromsystem": [
+      {"code": "AC", "bezeichnung": "Wechselstrom (AC/Märklin)", "sortierung": 1},
+      {"code": "DC", "bezeichnung": "Gleichstrom (DC)", "sortierung": 2}
+    ],
+    "modellkategorie": [
+      {"code": "LOK", "bezeichnung": "Lokomotive", "sortierung": 1},
+      {"code": "TWG", "bezeichnung": "Triebwagen", "sortierung": 2},
+      {"code": "PWG", "bezeichnung": "Personenwagen", "sortierung": 3},
+      {"code": "GWG", "bezeichnung": "Güterwagen", "sortierung": 4},
+      {"code": "ZUG", "bezeichnung": "Zugset", "sortierung": 5}
+    ],
+    "modelltyp": [
+      {"code": "DLO", "bezeichnung": "Dampflok", "sortierung": 1},
+      {"code": "ELO", "bezeichnung": "Elektrolok", "sortierung": 2},
+      {"code": "DIL", "bezeichnung": "Diesellok", "sortierung": 3},
+      {"code": "ETW", "bezeichnung": "Elektrotriebwagen", "sortierung": 4},
+      {"code": "DTW", "bezeichnung": "Dieseltriebwagen", "sortierung": 5},
+      {"code": "REI", "bezeichnung": "Reisezugwagen", "sortierung": 6},
+      {"code": "OFF", "bezeichnung": "Offener Güterwagen", "sortierung": 7},
+      {"code": "GED", "bezeichnung": "Gedeckter Güterwagen", "sortierung": 8},
+      {"code": "KES", "bezeichnung": "Kesselwagen", "sortierung": 9},
+      {"code": "FLA", "bezeichnung": "Flachwagen", "sortierung": 10},
+      {"code": "KUE", "bezeichnung": "Kühlwagen", "sortierung": 11},
+      {"code": "SON", "bezeichnung": "Sonderwagen", "sortierung": 12}
+    ],
+    "epoche": [
+      {"code": "I", "bezeichnung": "Epoche I (1835-1920)", "sortierung": 1},
+      {"code": "II", "bezeichnung": "Epoche II (1920-1945)", "sortierung": 2},
+      {"code": "III", "bezeichnung": "Epoche III (1945-1970)", "sortierung": 3},
+      {"code": "IV", "bezeichnung": "Epoche IV (1970-1990)", "sortierung": 4},
+      {"code": "V", "bezeichnung": "Epoche V (1990-2006)", "sortierung": 5},
+      {"code": "VI", "bezeichnung": "Epoche VI (ab 2006)", "sortierung": 6}
+    ],
+    "digitalschnittstelle": [
+      {"code": "NEM651", "bezeichnung": "NEM 651 (6-polig)", "sortierung": 1},
+      {"code": "NEM652", "bezeichnung": "NEM 652 (8-polig)", "sortierung": 2},
+      {"code": "PLUX8", "bezeichnung": "PluX8", "sortierung": 3},
+      {"code": "PLUX12", "bezeichnung": "PluX12", "sortierung": 4},
+      {"code": "PLUX16", "bezeichnung": "PluX16", "sortierung": 5},
+      {"code": "PLUX22", "bezeichnung": "PluX22", "sortierung": 6},
+      {"code": "MTC21", "bezeichnung": "mtc 21-polig", "sortierung": 7},
+      {"code": "NXT18", "bezeichnung": "Next18", "sortierung": 8},
+      {"code": "KEINE", "bezeichnung": "Keine Schnittstelle", "sortierung": 9}
+    ],
+    "bahngesellschaft": [
+      {"code": "DB", "bezeichnung": "Deutsche Bundesbahn", "sortierung": 1},
+      {"code": "DBAG", "bezeichnung": "Deutsche Bahn AG", "sortierung": 2},
+      {"code": "DR", "bezeichnung": "Deutsche Reichsbahn", "sortierung": 3},
+      {"code": "OEBB", "bezeichnung": "Österreichische Bundesbahnen", "sortierung": 4},
+      {"code": "SBB", "bezeichnung": "Schweizerische Bundesbahnen", "sortierung": 5},
+      {"code": "SNCF", "bezeichnung": "SNCF (Frankreich)", "sortierung": 6},
+      {"code": "NS", "bezeichnung": "NS (Niederlande)", "sortierung": 7},
+      {"code": "DSB", "bezeichnung": "DSB (Dänemark)", "sortierung": 8},
+      {"code": "SJ", "bezeichnung": "SJ (Schweden)", "sortierung": 9},
+      {"code": "FS", "bezeichnung": "FS (Italien)", "sortierung": 10},
+      {"code": "RENFE", "bezeichnung": "RENFE (Spanien)", "sortierung": 11},
+      {"code": "PKP", "bezeichnung": "PKP (Polen)", "sortierung": 12}
+    ],
+    "land_moba": [
+      {"code": "DE", "bezeichnung": "Deutschland", "sortierung": 1},
+      {"code": "AT", "bezeichnung": "Österreich", "sortierung": 2},
+      {"code": "CH", "bezeichnung": "Schweiz", "sortierung": 3},
+      {"code": "FR", "bezeichnung": "Frankreich", "sortierung": 4},
+      {"code": "NL", "bezeichnung": "Niederlande", "sortierung": 5},
+      {"code": "BE", "bezeichnung": "Belgien", "sortierung": 6},
+      {"code": "IT", "bezeichnung": "Italien", "sortierung": 7},
+      {"code": "DK", "bezeichnung": "Dänemark", "sortierung": 8},
+      {"code": "SE", "bezeichnung": "Schweden", "sortierung": 9},
+      {"code": "US", "bezeichnung": "USA", "sortierung": 10}
+    ],
+    "verfuegbarkeit": [
+      {"code": "SOF", "bezeichnung": "Sofort lieferbar", "sortierung": 1},
+      {"code": "KUR", "bezeichnung": "Kurzfristig lieferbar", "sortierung": 2},
+      {"code": "LIE", "bezeichnung": "Lieferbar", "sortierung": 3},
+      {"code": "LI4", "bezeichnung": "Lieferbar in 2-4 Wochen", "sortierung": 4},
+      {"code": "VOR", "bezeichnung": "Vorbestellung", "sortierung": 5},
+      {"code": "TER", "bezeichnung": "Termin offen", "sortierung": 6},
+      {"code": "AUS", "bezeichnung": "Ausverkauft", "sortierung": 7},
+      {"code": "NML", "bezeichnung": "Nicht mehr lieferbar", "sortierung": 8}
+    ],
+    "verpackungsart": [
+      {"code": "KAR", "bezeichnung": "Karton", "sortierung": 1},
+      {"code": "BLI", "bezeichnung": "Blister", "sortierung": 2},
+      {"code": "VIT", "bezeichnung": "Vitrine/Display-Box", "sortierung": 3},
+      {"code": "SET", "bezeichnung": "Set-Karton", "sortierung": 4},
+      {"code": "FOL", "bezeichnung": "Folienbeutel", "sortierung": 5},
+      {"code": "SKK", "bezeichnung": "Steckkarte", "sortierung": 6},
+      {"code": "SCH", "bezeichnung": "Schachtel", "sortierung": 7},
+      {"code": "OVP", "bezeichnung": "Originalverpackung", "sortierung": 8}
+    ],
+    "zielgruppe": [
+      {"code": "KIN", "bezeichnung": "Kinder", "sortierung": 1},
+      {"code": "JUG", "bezeichnung": "Jugendliche", "sortierung": 2},
+      {"code": "ERW", "bezeichnung": "Erwachsene", "sortierung": 3},
+      {"code": "SAM", "bezeichnung": "Sammler", "sortierung": 4},
+      {"code": "PRO", "bezeichnung": "Professionell", "sortierung": 5},
+      {"code": "ALL", "bezeichnung": "Alle Altersgruppen", "sortierung": 6}
+    ],
+    "qualitaetsstufe": [
+      {"code": "MUS", "bezeichnung": "Museum / Museumsstück", "sortierung": 1},
+      {"code": "PRE", "bezeichnung": "Premium", "sortierung": 2},
+      {"code": "STD", "bezeichnung": "Standard", "sortierung": 3},
+      {"code": "BAS", "bezeichnung": "Basis", "sortierung": 4},
+      {"code": "SPL", "bezeichnung": "Spielzeug", "sortierung": 5}
+    ],
+    "material": [
+      {"code": "ZDG", "bezeichnung": "Zinkdruckguss", "sortierung": 1},
+      {"code": "RES", "bezeichnung": "Resin", "sortierung": 2},
+      {"code": "MET", "bezeichnung": "Metall", "sortierung": 3},
+      {"code": "MIX", "bezeichnung": "Metall-Kunststoff-Mix", "sortierung": 4},
+      {"code": "KUN", "bezeichnung": "Kunststoff", "sortierung": 5},
+      {"code": "HOL", "bezeichnung": "Holz", "sortierung": 6}
+    ],
+    "massstab": [
+      {"code": "1:18", "bezeichnung": "1:18", "sortierung": 1},
+      {"code": "1:24", "bezeichnung": "1:24", "sortierung": 2},
+      {"code": "1:32", "bezeichnung": "1:32", "sortierung": 3},
+      {"code": "1:43", "bezeichnung": "1:43", "sortierung": 4},
+      {"code": "1:45", "bezeichnung": "1:45", "sortierung": 5},
+      {"code": "1:64", "bezeichnung": "1:64", "sortierung": 6},
+      {"code": "1:87", "bezeichnung": "1:87 (H0)", "sortierung": 7},
+      {"code": "1:100", "bezeichnung": "1:100", "sortierung": 8},
+      {"code": "1:120", "bezeichnung": "1:120 (TT)", "sortierung": 9},
+      {"code": "1:160", "bezeichnung": "1:160 (N)", "sortierung": 10},
+      {"code": "1:220", "bezeichnung": "1:220 (Z)", "sortierung": 11}
+    ],
+    "bildart": [
+      {"code": "VER3D", "bezeichnung": "Verpackung perspektivisch (3D)", "sortierung": 1},
+      {"code": "FRONT", "bezeichnung": "Frontansicht/Planogrammansicht (2D)", "sortierung": 2},
+      {"code": "ARTPAK", "bezeichnung": "Artikel und Verpackung", "sortierung": 3},
+      {"code": "DISPLAY", "bezeichnung": "Displayabbildung", "sortierung": 4},
+      {"code": "STIMMUNG", "bezeichnung": "Stimmungsbild mit Person", "sortierung": 5},
+      {"code": "VERRUECK", "bezeichnung": "Verpackungsrückseite", "sortierung": 6},
+      {"code": "DETAIL", "bezeichnung": "Detailansicht", "sortierung": 7},
+      {"code": "SONSTIGE", "bezeichnung": "Sonstige Bilder", "sortierung": 8}
+    ]
+  }
+}

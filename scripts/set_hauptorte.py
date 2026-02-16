@@ -9,8 +9,25 @@ Logic:
 Usage:
     uv run python scripts/set_hauptorte.py
 """
-import sqlite3
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+from app.config import get_settings
+
+settings = get_settings()
+
+
+def get_db_session():
+    """Creates a synchronous database session."""
+    db_url = settings.database_url_sync
+    engine = create_engine(db_url, echo=False)
+    Session = sessionmaker(bind=engine)
+    return Session(), engine
 
 
 def main():
@@ -19,48 +36,34 @@ def main():
     print("UDO API - Hauptorte setzen")
     print("=" * 60)
 
-    # Find database
-    db_path = Path(__file__).parent.parent / "data" / "udo.db"
-    if not db_path.exists():
-        print(f"Fehler: Datenbank nicht gefunden: {db_path}")
-        return
-
-    print(f"\n[1/4] Verbinde mit Datenbank: {db_path}")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    session, engine = get_db_session()
 
     # Count current state
-    print("\n[2/4] Analysiere aktuellen Stand...")
-    cursor.execute("SELECT COUNT(*) FROM geo_ort")
-    total = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM geo_ort WHERE ist_hauptort = 1")
-    current_hauptorte = cursor.fetchone()[0]
-
-    cursor.execute("""
+    print("\n[1/3] Analysiere aktuellen Stand...")
+    total = session.execute(text("SELECT COUNT(*) FROM geo_ort")).scalar()
+    current_hauptorte = session.execute(
+        text("SELECT COUNT(*) FROM geo_ort WHERE ist_hauptort = true")
+    ).scalar()
+    unique_combinations = session.execute(text("""
         SELECT COUNT(*) FROM (
             SELECT kreis_id, name FROM geo_ort GROUP BY kreis_id, name
-        )
-    """)
-    unique_combinations = cursor.fetchone()[0]
+        ) sub
+    """)).scalar()
 
     print(f"      Gesamtzahl Orte: {total:,}")
     print(f"      Aktuelle Hauptorte: {current_hauptorte:,}")
     print(f"      Eindeutige (Kreis, Name) Kombinationen: {unique_combinations:,}")
 
-    # Reset all ist_hauptort to 0
-    print("\n[3/4] Setze alle ist_hauptort auf 0...")
-    cursor.execute("UPDATE geo_ort SET ist_hauptort = 0")
-    print(f"      {cursor.rowcount:,} Einträge aktualisiert")
+    # Reset all ist_hauptort to false
+    print("\n[2/3] Setze alle ist_hauptort auf false...")
+    result = session.execute(text("UPDATE geo_ort SET ist_hauptort = false"))
+    print(f"      {result.rowcount:,} Einträge aktualisiert")
 
-    # Set ist_hauptort = 1 for entry with lowest PLZ per (kreis_id, name)
-    print("\n[4/4] Setze ist_hauptort = 1 für niedrigste PLZ pro (Kreis, Name)...")
-
-    # SQLite doesn't support UPDATE with JOIN directly, so we use a subquery
-    # This query finds the id of the row with MIN(plz) for each (kreis_id, name) group
-    cursor.execute("""
+    # Set ist_hauptort = true for entry with lowest PLZ per (kreis_id, name)
+    print("\n[3/3] Setze ist_hauptort = true für niedrigste PLZ pro (Kreis, Name)...")
+    result = session.execute(text("""
         UPDATE geo_ort
-        SET ist_hauptort = 1
+        SET ist_hauptort = true
         WHERE id IN (
             SELECT id FROM (
                 SELECT id,
@@ -72,31 +75,29 @@ def main():
             ) ranked
             WHERE rn = 1
         )
-    """)
-    updated = cursor.rowcount
+    """))
+    updated = result.rowcount
     print(f"      {updated:,} Hauptorte gesetzt")
 
-    # Commit changes
-    conn.commit()
+    session.commit()
 
     # Verify results
     print("\n" + "=" * 60)
     print("Verifikation")
     print("=" * 60)
 
-    cursor.execute("SELECT COUNT(*) FROM geo_ort WHERE ist_hauptort = 1")
-    new_hauptorte = cursor.fetchone()[0]
-
-    cursor.execute("""
+    new_hauptorte = session.execute(
+        text("SELECT COUNT(*) FROM geo_ort WHERE ist_hauptort = true")
+    ).scalar()
+    duplicates = session.execute(text("""
         SELECT COUNT(*) FROM (
             SELECT kreis_id, name, COUNT(*) as cnt
             FROM geo_ort
-            WHERE ist_hauptort = 1
+            WHERE ist_hauptort = true
             GROUP BY kreis_id, name
             HAVING COUNT(*) > 1
-        )
-    """)
-    duplicates = cursor.fetchone()[0]
+        ) sub
+    """)).scalar()
 
     print(f"\nNeue Hauptorte: {new_hauptorte:,}")
     print(f"Erwartete Hauptorte: {unique_combinations:,}")
@@ -112,39 +113,39 @@ def main():
     print("Beispiele")
     print("=" * 60)
 
-    cursor.execute("""
+    rows = session.execute(text("""
         SELECT k.name as kreis, o.name as ort, o.plz, o.ist_hauptort
         FROM geo_ort o
         JOIN geo_kreis k ON o.kreis_id = k.id
         WHERE o.name = 'Berlin'
         ORDER BY o.plz
         LIMIT 10
-    """)
+    """)).fetchall()
 
     print("\nBerlin (erste 10 PLZ):")
     print(f"{'Kreis':<30} {'Ort':<15} {'PLZ':<10} {'Hauptort'}")
     print("-" * 65)
-    for row in cursor.fetchall():
+    for row in rows:
         hauptort = "ja" if row[3] else ""
         print(f"{row[0]:<30} {row[1]:<15} {row[2]:<10} {hauptort}")
 
-    cursor.execute("""
+    rows = session.execute(text("""
         SELECT k.name as kreis, o.name as ort, o.plz, o.ist_hauptort
         FROM geo_ort o
         JOIN geo_kreis k ON o.kreis_id = k.id
         WHERE o.name = 'München'
         ORDER BY o.plz
         LIMIT 10
-    """)
+    """)).fetchall()
 
     print("\nMünchen (erste 10 PLZ):")
     print(f"{'Kreis':<30} {'Ort':<15} {'PLZ':<10} {'Hauptort'}")
     print("-" * 65)
-    for row in cursor.fetchall():
+    for row in rows:
         hauptort = "ja" if row[3] else ""
         print(f"{row[0]:<30} {row[1]:<15} {row[2]:<10} {hauptort}")
 
-    conn.close()
+    session.close()
     print("\nFertig!")
 
 

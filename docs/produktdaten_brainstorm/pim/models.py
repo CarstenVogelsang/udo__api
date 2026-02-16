@@ -1,0 +1,6 @@
+from django.db import models
+from base.models_mehrsprachig import MehrsprachigeBezeichnung
+from .models_produkteigenschaft_ref import RefStandardWert, RefMobaBahnverwaltung, RefMobaNenngroesse
+from .models_produkt import Produkt
+from .models_taxonomie import TaxoProduktkategorie
+from .models_produkteigenschaft import Produkteigenschaft, ProduktEigenschaftswert, ProdukteigenschaftValidierungsregel, ProduktkategorieProdukteigenschaft

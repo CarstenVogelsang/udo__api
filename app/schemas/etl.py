@@ -7,8 +7,11 @@ Provides schemas for:
 - EtlFieldMapping: Field-level mapping with transformations
 - EtlImportLog: Import run logs
 """
+import json
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============ EtlSource Schemas ============
@@ -17,6 +20,8 @@ class EtlSourceBase(BaseModel):
     """Base schema for EtlSource."""
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = Field(None, max_length=255)
+    titel: str | None = Field(None, max_length=200)
+    verantwortlicher: str | None = Field(None, max_length=200)
     connection_type: str = Field(..., min_length=1, max_length=20)
     connection_string: str | None = Field(None, max_length=500)
     is_active: bool = True
@@ -33,6 +38,8 @@ class EtlSourceUpdate(BaseModel):
     """Schema for updating an EtlSource."""
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = Field(None, max_length=255)
+    titel: str | None = Field(None, max_length=200)
+    verantwortlicher: str | None = Field(None, max_length=200)
     connection_type: str | None = Field(None, min_length=1, max_length=20)
     connection_string: str | None = Field(None, max_length=500)
     is_active: bool | None = None
@@ -105,6 +112,7 @@ class EtlTableMappingFull(EtlTableMappingWithFields):
 class EtlFieldMappingBase(BaseModel):
     """Base schema for EtlFieldMapping."""
     source_field: str = Field(..., min_length=1, max_length=100)
+    source_field_aliases: list[str] | None = None
     target_field: str = Field(..., min_length=1, max_length=100)
     transform: str | None = Field(None, max_length=100)
     is_required: bool = False
@@ -137,6 +145,13 @@ class EtlFieldMappingResponse(EtlFieldMappingBase):
     table_mapping_id: str
     erstellt_am: datetime | None = None
     aktualisiert_am: datetime | None = None
+
+    @field_validator("source_field_aliases", mode="before")
+    @classmethod
+    def parse_aliases(cls, v: Any) -> list[str] | None:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
 
 # ============ EtlImportLog Schemas ============
@@ -273,6 +288,7 @@ class ExcelSourcePreview(BaseModel):
 class BulkFieldMappingItem(BaseModel):
     """Single field mapping in a bulk operation."""
     source_field: str = Field(..., min_length=1, max_length=100)
+    source_field_aliases: list[str] | None = None
     target_field: str = Field(..., min_length=1, max_length=100)
     transform: str | None = Field(None, max_length=100)
     is_required: bool = False
@@ -307,6 +323,115 @@ class TableSchemaResponse(BaseModel):
     """Schema of a target table for the visual mapping editor."""
     table_name: str
     columns: list[TableColumnInfo]
+
+
+# ============ Import File Schemas ============
+
+class EtlImportFileResponse(BaseModel):
+    """Response schema for EtlImportFile."""
+    id: str
+    source_id: str | None = None
+    original_filename: str
+    stored_filename: str
+    file_size: int
+    content_type: str | None = None
+    status: str
+    headers: list[str] | None = None
+    row_count: int | None = None
+    analysis_result: list[dict[str, Any]] | None = None
+    uploaded_by: str | None = None
+    notizen: str | None = None
+    file_role: str | None = None
+    is_merged_output: bool | None = None
+    erstellt_am: datetime | None = None
+    aktualisiert_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("headers", mode="before")
+    @classmethod
+    def parse_headers(cls, v: Any) -> list[str] | None:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    @field_validator("analysis_result", mode="before")
+    @classmethod
+    def parse_analysis_result(cls, v: Any) -> list[dict[str, Any]] | None:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+
+class EtlImportFileList(BaseModel):
+    """Paginated list of EtlImportFiles."""
+    items: list[EtlImportFileResponse]
+    total: int
+
+
+class EtlImportFileAssign(BaseModel):
+    """Payload for assigning a file to a source."""
+    source_id: str
+
+
+class EtlImportFileRowsResponse(BaseModel):
+    """Paginated rows from an import file."""
+    file_id: str
+    headers: list[str]
+    rows: list[dict[str, Any]]
+    total_rows: int
+    offset: int
+    limit: int
+
+
+# ============ Field Alias Schemas ============
+
+class FieldAliasUpdate(BaseModel):
+    """Payload for adding/removing source field aliases."""
+    add: list[str] = []
+    remove: list[str] = []
+
+
+# ============ Compatibility Report Schemas ============
+
+class FieldSuggestion(BaseModel):
+    """Fuzzy match suggestion for a missing field."""
+    header: str
+    similarity: float
+    normalized_similarity: float | None = None
+
+
+class FieldCompatibility(BaseModel):
+    """Single field compatibility entry."""
+    field_mapping_id: str
+    source_field: str
+    target_field: str
+    status: str  # "matched" | "matched_by_alias" | "missing"
+    matched_header: str | None = None
+    aliases: list[str] = []
+    is_required: bool = False
+    suggestions: list[FieldSuggestion] = []
+
+
+class UnmappedHeader(BaseModel):
+    """File header that has no field mapping."""
+    header: str
+    suggestions: list[dict[str, Any]] = []
+
+
+class CompatibilityReport(BaseModel):
+    """Full compatibility report between file and source."""
+    file_id: str
+    source_id: str
+    source_name: str
+    total_fields: int
+    matched_count: int
+    matched_by_alias_count: int
+    missing_count: int
+    unmapped_count: int
+    coverage: float
+    fields: list[FieldCompatibility]
+    unmapped_headers: list[UnmappedHeader]
 
 
 # Forward reference updates

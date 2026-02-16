@@ -116,22 +116,30 @@ class ComUnternehmen(Base):
 
     id = Column(UUID, primary_key=True, default=generate_uuid)
     legacy_id = Column(Integer, unique=True, index=True)  # kStore from spi_tStore
+    status_id = Column(UUID, ForeignKey("bas_status.id"), nullable=True)
     status_datum = Column(DateTime)  # dStatusUnternehmen
-    kurzname = Column(String(100), index=True)  # cKurzname
+    kurzname = Column(String(200), index=True)  # cKurzname
     firmierung = Column(String(255))  # cFirmierung
-    strasse = Column(String(255))  # cStrasse
-    strasse_hausnr = Column(String(50))  # cStrasseHausNr
+    adresszeile = Column(String(500))  # Raw address line (international)
+    strasse = Column(String(255))  # cStrasse (parsed, DACH only)
+    strasse_hausnr = Column(String(50))  # cStrasseHausNr (parsed, DACH only)
     website = Column(String(255))
     email = Column(String(255), index=True)
+    email2 = Column(String(255))  # Second email address
     telefon = Column(String(50))
+    fax = Column(String(50))
+    sprache_id = Column(UUID, ForeignKey("bas_sprache.id"), nullable=True)
     geo_ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=True)  # kGeoOrt → GeoOrt
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     geloescht_am = Column(DateTime, nullable=True)  # Soft delete timestamp
 
+    # Relationship to Status
+    status = relationship("BasStatus", lazy="joined")
     # Relationship to GeoOrt - provides full geo hierarchy
-    # Using lazy="joined" for eager loading in single query
     geo_ort = relationship("GeoOrt", lazy="joined")
+    # Relationship to language
+    sprache = relationship("BasSprache", lazy="joined")
 
     # Relationship to Organisationen via junction table
     organisation_zuordnungen = relationship(
@@ -162,10 +170,45 @@ class ComUnternehmen(Base):
         cascade="all, delete-orphan"
     )
 
+    # Relationship to Lieferbeziehungen (as customer)
+    lieferbeziehungen = relationship(
+        "ComLieferbeziehung",
+        foreign_keys="ComLieferbeziehung.unternehmen_id",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    # Relationship to Sortiment (brands/series carried)
+    sortimente = relationship(
+        "ComUnternehmenSortiment",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    # Relationship to Dienstleistungen
+    dienstleistung_zuordnungen = relationship(
+        "ComUnternehmenDienstleistung",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    # Relationship to Bonität assessments
+    bonitaeten = relationship(
+        "ComBonitaet",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         Index("idx_unternehmen_geo_ort", "geo_ort_id"),
         Index("idx_unternehmen_kurzname", "kurzname"),
         Index("idx_unternehmen_legacy", "legacy_id"),
+        Index("idx_unternehmen_sprache", "sprache_id"),
+        Index("idx_unternehmen_status", "status_id"),
     )
 
     def __repr__(self):
@@ -291,3 +334,205 @@ class ComExternalId(Base):
 
     def __repr__(self):
         return f"<ComExternalId {self.source_name}:{self.id_type}={self.external_value}>"
+
+
+# ============ Manufacturer / Brand / Series ============
+
+
+class ComMarke(Base):
+    """
+    Brand belonging to a manufacturer (Hersteller).
+
+    A manufacturer (ComUnternehmen) can have multiple brands.
+    E.g., Märklin → Märklin, Trix, LGB.
+    """
+    __tablename__ = "com_marke"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    hersteller_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    name = Column(String(100), nullable=False)  # "Märklin", "Trix", "LGB"
+    kurzname = Column(String(50))
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    hersteller = relationship("ComUnternehmen", foreign_keys=[hersteller_id])
+    serien = relationship(
+        "ComSerie", back_populates="marke",
+        lazy="selectin", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("uq_marke_hersteller_name", "hersteller_id", "name", unique=True),
+        Index("idx_marke_name", "name"),
+    )
+
+    def __repr__(self):
+        return f"<ComMarke {self.name}>"
+
+
+class ComSerie(Base):
+    """
+    Product series belonging to a brand.
+
+    E.g., Märklin → MyWorld, Premium Spur 1.
+    """
+    __tablename__ = "com_serie"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    marke_id = Column(UUID, ForeignKey("com_marke.id"), nullable=False)
+    name = Column(String(100), nullable=False)  # "MyWorld", "Premium Spur 1"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    marke = relationship("ComMarke", back_populates="serien")
+
+    __table_args__ = (
+        Index("uq_serie_marke_name", "marke_id", "name", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<ComSerie {self.name}>"
+
+
+# ============ Supplier Relationship ============
+
+
+class ComLieferbeziehung(Base):
+    """
+    Customer-supplier relationship between two companies.
+
+    The 'unternehmen' is the dealer/customer, 'lieferant' is the supplier.
+    Stores supplier-specific attributes like customer number, store type,
+    and MHI membership.
+    """
+    __tablename__ = "com_lieferbeziehung"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    lieferant_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    kundennummer = Column(String(50))  # Customer number at supplier
+    store_typ = Column(String(20))  # "maerklin_store", "shop_in_shop", "wandloesung", "standard"
+    bonus_haendler = Column(Boolean, default=False)
+    in_haendlersuche = Column(Boolean, default=True)  # Inverted from "keine Anzeige"
+    ist_mhi = Column(Boolean, default=False)  # MHI member
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship(
+        "ComUnternehmen",
+        foreign_keys=[unternehmen_id],
+        back_populates="lieferbeziehungen",
+    )
+    lieferant = relationship("ComUnternehmen", foreign_keys=[lieferant_id])
+
+    __table_args__ = (
+        Index("uq_lieferbeziehung", "unternehmen_id", "lieferant_id", unique=True),
+        Index("idx_lieferbeziehung_lieferant", "lieferant_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComLieferbeziehung {self.unternehmen_id} → {self.lieferant_id}>"
+
+
+# ============ Sortiment (Dealer carries Brand/Series) ============
+
+
+class ComUnternehmenSortiment(Base):
+    """
+    Junction: which brands/series a dealer carries.
+
+    Either marke_id or serie_id must be set (not both None).
+    """
+    __tablename__ = "com_unternehmen_sortiment"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    marke_id = Column(UUID, ForeignKey("com_marke.id"), nullable=True)
+    serie_id = Column(UUID, ForeignKey("com_serie.id"), nullable=True)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="sortimente")
+    marke = relationship("ComMarke", lazy="joined")
+    serie = relationship("ComSerie", lazy="joined")
+
+    __table_args__ = (
+        Index("idx_sortiment_unternehmen", "unternehmen_id"),
+        Index("idx_sortiment_marke", "marke_id"),
+        Index("idx_sortiment_serie", "serie_id"),
+    )
+
+    def __repr__(self):
+        ref = self.marke_id or self.serie_id
+        return f"<ComUnternehmenSortiment {self.unternehmen_id} → {ref}>"
+
+
+# ============ Services / Dienstleistungen ============
+
+
+class ComDienstleistung(Base):
+    """
+    Service offered by dealers (e.g., model railway repair service).
+
+    Lookup table — services are referenced by junction table.
+    """
+    __tablename__ = "com_dienstleistung"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    beschreibung = Column(Text)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ComDienstleistung {self.name}>"
+
+
+class ComUnternehmenDienstleistung(Base):
+    """Junction: which services a company offers."""
+    __tablename__ = "com_unternehmen_dienstleistung"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    dienstleistung_id = Column(UUID, ForeignKey("com_dienstleistung.id"), nullable=False)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="dienstleistung_zuordnungen")
+    dienstleistung = relationship("ComDienstleistung", lazy="joined")
+
+    __table_args__ = (
+        Index("uq_unternehmen_dienstleistung", "unternehmen_id", "dienstleistung_id", unique=True),
+        Index("idx_ud_unternehmen", "unternehmen_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComUnternehmenDienstleistung {self.unternehmen_id} → {self.dienstleistung_id}>"
+
+
+# ============ Credit Rating / Bonität ============
+
+
+class ComBonitaet(Base):
+    """
+    Anonymized credit assessment for a company.
+
+    Score 1 (very good) to 5 (very bad).
+    Source is anonymized (e.g., "Lieferantenauskunft" instead of specific supplier).
+    Multiple assessments per company are possible (from different sources/dates).
+    """
+    __tablename__ = "com_bonitaet"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    score = Column(Integer, nullable=False)  # 1-5 (1=sehr gut, 5=sehr schlecht)
+    quelle = Column(String(100))  # Anonymized: "Lieferantenauskunft"
+    notiz = Column(Text)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="bonitaeten")
+
+    __table_args__ = (
+        Index("idx_bonitaet_unternehmen", "unternehmen_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComBonitaet {self.unternehmen_id}: Score {self.score}>"
