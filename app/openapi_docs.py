@@ -18,10 +18,10 @@ from fastapi.routing import APIRoute
 # Tag-Konfiguration pro Rolle
 ROLE_TAGS = {
     "public": ["System", "Authentication"],  # Auth endpoints public (login doesn't need auth)
-    "partner": ["System", "Authentication", "Partner Geodaten", "Partner Unternehmen"],
+    "partner": ["System", "Authentication", "Partner Geodaten", "Partner Unternehmen", "Partner Recherche"],
     "superadmin": [
         "System", "Authentication", "Partner Geodaten", "Partner Unternehmen",
-        "Geodaten", "Unternehmen", "ETL", "Admin", "Organisationen",
+        "Geodaten", "Unternehmen", "ETL", "Admin", "Organisationen", "Partner Recherche",
         # Plugin Marketplace
         "Plugins (Admin)", "Projekte (Admin)", "Lizenzen (Admin)", "Lizenz-Check (Satelliten)",
     ],

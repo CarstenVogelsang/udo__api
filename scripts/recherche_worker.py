@@ -183,16 +183,21 @@ async def verarbeite_auftrag(db_session, auftrag, registry: ProviderRegistry):
 
         # 3. Run searches
         all_results: list[RohErgebnisData] = []
+        einkaufskosten_usd = 0.0
         for provider in providers:
             try:
-                results = await provider.suchen(
+                such_ergebnis = await provider.suchen(
                     lat=params["lat"],
                     lng=params["lng"],
                     radius_m=params["radius_m"],
                     suchbegriff=params["suchbegriff"],
                 )
-                all_results.extend(results)
-                logger.info(f"Provider '{provider.name}': {len(results)} results")
+                all_results.extend(such_ergebnis.ergebnisse)
+                einkaufskosten_usd += such_ergebnis.api_kosten_usd
+                logger.info(
+                    f"Provider '{provider.name}': {len(such_ergebnis.ergebnisse)} results, "
+                    f"API cost: ${such_ergebnis.api_kosten_usd:.4f}"
+                )
             except Exception as e:
                 logger.error(f"Provider '{provider.name}' failed: {e}")
 
@@ -253,13 +258,15 @@ async def verarbeite_auftrag(db_session, auftrag, registry: ProviderRegistry):
             ergebnis_duplikat=dedup_stats["duplikate"],
             ergebnis_aktualisiert=dedup_stats.get("aktualisiert", 0),
             kosten_tatsaechlich_cents=kosten_cents,
+            einkaufskosten_usd=einkaufskosten_usd,
         )
 
         await db_session.commit()
         logger.info(
             f"Order {auftrag.id[:8]}... completed: "
             f"{len(all_results)} raw, {dedup_stats['neue']} new, "
-            f"{dedup_stats['duplikate']} duplicates, cost={kosten_cents}ct"
+            f"{dedup_stats['duplikate']} duplicates, "
+            f"customer={kosten_cents}ct, API=${einkaufskosten_usd:.4f}"
         )
 
     except Exception as e:

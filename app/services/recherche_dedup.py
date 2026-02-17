@@ -221,9 +221,11 @@ class RecherchDeduplizierungService:
         if roh.externe_id:
             from app.models.com import ComExternalId
             ext_id = ComExternalId(
-                unternehmen_id=unternehmen.id,
-                system=roh.quelle,
-                externe_id=roh.externe_id,
+                entity_type="unternehmen",
+                entity_id=unternehmen.id,
+                source_name=roh.quelle,
+                id_type="place_id",
+                external_value=roh.externe_id[:255],
             )
             self.db.add(ext_id)
             await self.db.flush()

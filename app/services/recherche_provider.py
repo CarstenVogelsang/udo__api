@@ -34,6 +34,16 @@ class RohErgebnisData:
     rohdaten: dict | None = field(default_factory=dict)  # Full raw response
 
 
+@dataclass
+class SuchErgebnis:
+    """Container for search results including actual API costs.
+
+    Returned by provider.suchen(). Separates results from cost tracking.
+    """
+    ergebnisse: list[RohErgebnisData]
+    api_kosten_usd: float = 0.0  # Actual cost reported by the API (in USD)
+
+
 class RecherchProviderBase(ABC):
     """Abstract base class for external data providers.
 
@@ -51,8 +61,8 @@ class RecherchProviderBase(ABC):
         suchbegriff: str,
         kategorie: str | None = None,
         max_ergebnisse: int = 60,
-    ) -> list[RohErgebnisData]:
-        """Execute a search and return normalized results.
+    ) -> SuchErgebnis:
+        """Execute a search and return normalized results with API costs.
 
         Args:
             lat: Center latitude.
@@ -63,7 +73,7 @@ class RecherchProviderBase(ABC):
             max_ergebnisse: Maximum results to return.
 
         Returns:
-            List of normalized result objects.
+            SuchErgebnis with results and actual API cost in USD.
         """
 
     @abstractmethod

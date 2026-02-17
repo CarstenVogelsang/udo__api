@@ -5,7 +5,7 @@ Key-Value store for application-level configuration.
 """
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy import Boolean, Column, String, Text, DateTime
 
 from app.models.geo import Base
 
@@ -17,7 +17,9 @@ class SystemSetting(Base):
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=False)
     beschreibung = Column(Text, nullable=True)
+    ist_geheim = Column(Boolean, nullable=False, default=False)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
-        return f"<SystemSetting {self.key}={self.value}>"
+        masked = "***" if self.ist_geheim else self.value
+        return f"<SystemSetting {self.key}={masked}>"

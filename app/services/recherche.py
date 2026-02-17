@@ -259,6 +259,7 @@ class RecherchService:
         ergebnis_duplikat: int,
         ergebnis_aktualisiert: int,
         kosten_tatsaechlich_cents: int,
+        einkaufskosten_usd: float = 0.0,
     ) -> RecherchAuftrag | None:
         """Mark an order as completed and settle credits.
 
@@ -278,6 +279,7 @@ class RecherchService:
         auftrag.ergebnis_anzahl_duplikat = ergebnis_duplikat
         auftrag.ergebnis_anzahl_aktualisiert = ergebnis_aktualisiert
         auftrag.kosten_tatsaechlich_cents = kosten_tatsaechlich_cents
+        auftrag.einkaufskosten_usd = einkaufskosten_usd
         auftrag.worker_beendet_am = datetime.utcnow()
         auftrag.abgeschlossen_am = datetime.utcnow()
 

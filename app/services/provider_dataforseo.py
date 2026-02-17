@@ -7,11 +7,12 @@ API Docs: https://docs.dataforseo.com/v3/business_data/business_listings/search/
 Pricing: ~$0.002 per result (very cost-effective for bulk recherche).
 """
 import base64
+import json
 import logging
 
 import httpx
 
-from app.services.recherche_provider import RecherchProviderBase, RohErgebnisData
+from app.services.recherche_provider import RecherchProviderBase, RohErgebnisData, SuchErgebnis
 
 logger = logging.getLogger(__name__)
 
@@ -54,44 +55,52 @@ class DataForSeoProvider(RecherchProviderBase):
         suchbegriff: str,
         kategorie: str | None = None,
         max_ergebnisse: int = 60,
-    ) -> list[RohErgebnisData]:
+    ) -> SuchErgebnis:
         """Search DataForSEO Business Listings API.
 
         Uses location-based search with category/keyword filters.
+        Returns results with actual API cost from the response.
         """
         if not self._login or not self._password:
             logger.warning("DataForSEO credentials not configured, skipping.")
-            return []
+            return SuchErgebnis(ergebnisse=[])
 
         results: list[RohErgebnisData] = []
+        api_kosten_usd = 0.0
 
         # DataForSEO uses offset-based pagination
         offset = 0
         batch_size = min(100, max_ergebnisse)  # Max 100 per request
 
+        # Convert radius from meters to kilometers (API expects km, min 1km)
+        radius_km = max(1, round(radius_m / 1000))
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             while len(results) < max_ergebnisse:
                 filters = []
 
-                # Category filter
+                # Category filter (additional to categories param)
                 if kategorie:
                     filters.append(["category", "like", f"%{kategorie}%"])
 
-                # Location filter (coordinates + radius)
-                location_filter = {
-                    "latitude": lat,
-                    "longitude": lng,
-                    "radius": radius_m,
+                # Build request body per DataForSEO docs:
+                # https://docs.dataforseo.com/v3/business_data/business_listings/search/live/
+                # Only include parameters that have values (no None/null).
+                task = {
+                    "categories": [suchbegriff.lower()] if suchbegriff else ["restaurant"],
+                    "location_coordinate": f"{lat},{lng},{radius_km}",
+                    "limit": batch_size,
                 }
 
-                body = [{
-                    "categories": [suchbegriff] if suchbegriff else None,
-                    "location_coordinate": f"{lat},{lng},{radius_m}",
-                    "language_code": "de",
-                    "limit": batch_size,
-                    "offset": offset,
-                    "filters": filters if filters else None,
-                }]
+                # offset only when paginating (default is 0)
+                if offset > 0:
+                    task["offset"] = offset
+
+                if filters:
+                    task["filters"] = filters
+
+                body = [task]
+                logger.info(f"DataForSEO request: {json.dumps(body, ensure_ascii=False)}")
 
                 headers = {
                     "Content-Type": "application/json",
@@ -122,9 +131,13 @@ class DataForSeoProvider(RecherchProviderBase):
                     break
 
                 task = tasks[0]
+                api_kosten_usd += task.get("cost", 0) or 0
+
                 if task.get("status_code") != 20000:
                     logger.error(
-                        f"DataForSEO task error: {task.get('status_message')}"
+                        f"DataForSEO task error (code={task.get('status_code')}): "
+                        f"{task.get('status_message')}\n"
+                        f"Full task response: {json.dumps(task, indent=2, ensure_ascii=False)}"
                     )
                     break
 
@@ -137,6 +150,13 @@ class DataForSeoProvider(RecherchProviderBase):
                     break
 
                 for item in items:
+                    # Log first raw item for debugging
+                    if not results:
+                        logger.info(
+                            f"DataForSEO sample item (raw):\n"
+                            f"{json.dumps(item, indent=2, ensure_ascii=False)}"
+                        )
+
                     result = self._normalize(item)
                     if result:
                         results.append(result)
@@ -149,9 +169,10 @@ class DataForSeoProvider(RecherchProviderBase):
 
         logger.info(
             f"DataForSEO: {len(results)} results for "
-            f"'{suchbegriff}' at ({lat}, {lng}) r={radius_m}m"
+            f"'{suchbegriff}' at ({lat}, {lng}) r={radius_km}km "
+            f"(API cost: ${api_kosten_usd:.4f})"
         )
-        return results
+        return SuchErgebnis(ergebnisse=results, api_kosten_usd=api_kosten_usd)
 
     def _normalize(self, item: dict) -> RohErgebnisData | None:
         """Convert a DataForSEO Business Listing to normalized format."""

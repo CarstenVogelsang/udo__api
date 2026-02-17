@@ -10,7 +10,7 @@ import logging
 
 import httpx
 
-from app.services.recherche_provider import RecherchProviderBase, RohErgebnisData
+from app.services.recherche_provider import RecherchProviderBase, RohErgebnisData, SuchErgebnis
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +46,20 @@ class GooglePlacesProvider(RecherchProviderBase):
         suchbegriff: str,
         kategorie: str | None = None,
         max_ergebnisse: int = 60,
-    ) -> list[RohErgebnisData]:
+    ) -> SuchErgebnis:
         """Search Google Places API (New) for businesses.
 
         Uses the Nearby Search endpoint with text query.
         Handles pagination via pageToken.
+        Google doesn't return cost in the response — estimated from request count.
         """
         if not self._api_key:
             logger.warning("Google Places API key not configured, skipping.")
-            return []
+            return SuchErgebnis(ergebnisse=[])
 
         results: list[RohErgebnisData] = []
         page_token: str | None = None
+        request_count = 0
 
         # Field mask for the response (controls billing)
         field_mask = (
@@ -122,6 +124,7 @@ class GooglePlacesProvider(RecherchProviderBase):
                     )
                     response.raise_for_status()
                     data = response.json()
+                    request_count += 1
                 except httpx.HTTPStatusError as e:
                     logger.error(
                         f"Google Places API error: {e.response.status_code} "
@@ -146,11 +149,14 @@ class GooglePlacesProvider(RecherchProviderBase):
                 if not page_token:
                     break
 
+        # Google doesn't return cost — estimate from request count
+        api_kosten_usd = request_count * self.get_kosten_pro_request()
         logger.info(
             f"Google Places: {len(results)} results for "
-            f"'{suchbegriff}' at ({lat}, {lng}) r={radius_m}m"
+            f"'{suchbegriff}' at ({lat}, {lng}) r={radius_m}m "
+            f"({request_count} requests, est. ${api_kosten_usd:.4f})"
         )
-        return results
+        return SuchErgebnis(ergebnisse=results, api_kosten_usd=api_kosten_usd)
 
     def _normalize(self, place: dict) -> RohErgebnisData | None:
         """Convert a Google Places response to normalized format."""

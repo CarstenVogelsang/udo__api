@@ -18,6 +18,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Numeric,
     Text,
     JSON,
 )
@@ -94,8 +95,11 @@ class RecherchAuftrag(Base):
     ergebnis_anzahl_duplikat = Column(Integer, default=0)      # Duplicates found
     ergebnis_anzahl_aktualisiert = Column(Integer, default=0)  # Existing updated
 
-    # --- Actual cost ---
+    # --- Actual cost (charged to customer) ---
     kosten_tatsaechlich_cents = Column(Integer, nullable=True)
+
+    # --- Purchase cost (actual API cost, in USD) ---
+    einkaufskosten_usd = Column(Numeric(10, 4), nullable=True)
 
     # --- Credit reservation tracking ---
     reservierung_transaction_id = Column(UUID, nullable=True)  # ApiCreditTransaction.id

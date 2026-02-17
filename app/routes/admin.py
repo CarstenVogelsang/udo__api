@@ -35,6 +35,7 @@ from app.schemas.billing import (
 )
 from app.schemas.setting import (
     SystemSettingResponse,
+    SystemSettingRevealResponse,
     SystemSettingUpdate,
     SystemSettingList,
 )
@@ -362,15 +363,15 @@ async def list_rechnungen(
     "/settings",
     response_model=SystemSettingList,
     summary="Alle Einstellungen",
-    description="Zeigt alle System-Einstellungen.",
+    description="Zeigt alle System-Einstellungen. Geheime Werte werden maskiert.",
 )
 async def list_settings(
     admin: ApiPartner = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all system settings (superadmin only)."""
+    """Get all system settings (superadmin only). Secret values are masked."""
     service = SettingService(db)
-    items = await service.get_all_settings()
+    items = await service.get_all_settings_masked()
     return {"items": items}
 
 
@@ -378,29 +379,52 @@ async def list_settings(
     "/settings/{key}",
     response_model=SystemSettingResponse,
     summary="Einstellung abrufen",
-    description="Gibt eine bestimmte System-Einstellung zurück.",
+    description="Gibt eine System-Einstellung zurück. Geheime Werte werden maskiert.",
 )
 async def get_setting(
     key: str,
     admin: ApiPartner = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a system setting by key (superadmin only)."""
+    """Get a system setting by key (superadmin only). Secret values are masked."""
     service = SettingService(db)
-    setting = await service.get_setting(key)
-    if not setting:
+    result = await service.get_value_masked(key)
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Einstellung '{key}' nicht gefunden.",
         )
-    return setting
+    return result
+
+
+@router.get(
+    "/settings/{key}/reveal",
+    response_model=SystemSettingRevealResponse,
+    summary="Geheimen Wert entschlüsseln",
+    description="Gibt den entschlüsselten Klartext-Wert einer geheimen Einstellung zurück.",
+)
+async def reveal_setting(
+    key: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reveal decrypted value for a secret setting (superadmin only)."""
+    service = SettingService(db)
+    value = await service.reveal_value(key)
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Einstellung '{key}' nicht gefunden.",
+        )
+    return {"key": key, "value": value}
 
 
 @router.patch(
     "/settings/{key}",
     response_model=SystemSettingResponse,
     summary="Einstellung aktualisieren",
-    description="Aktualisiert den Wert einer System-Einstellung.",
+    description="Aktualisiert den Wert einer System-Einstellung. "
+                "Geheime Werte werden automatisch verschlüsselt.",
 )
 async def update_setting(
     key: str,
@@ -408,7 +432,7 @@ async def update_setting(
     admin: ApiPartner = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a system setting (superadmin only)."""
+    """Update a system setting (superadmin only). Secret values are encrypted."""
     service = SettingService(db)
     setting = await service.update_setting(key, data.value)
     if not setting:
@@ -416,4 +440,6 @@ async def update_setting(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Einstellung '{key}' nicht gefunden.",
         )
-    return setting
+    # Return masked version for response
+    result = await service.get_value_masked(key)
+    return result
