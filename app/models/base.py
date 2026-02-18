@@ -57,6 +57,26 @@ class BasSprache(Base):
         return f"<BasSprache {self.code}: {self.name}>"
 
 
+class BasBewertungsplattform(Base):
+    """
+    Rating platform lookup table (Google, Yelp, TripAdvisor, etc.).
+
+    Used as FK reference for company ratings (com_unternehmen_bewertung).
+    Seeded with: google, yelp, tripadvisor, trustpilot, kununu.
+    """
+    __tablename__ = "bas_bewertungsplattform"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    code = Column(String(30), unique=True, nullable=False, index=True)  # "google", "yelp"
+    name = Column(String(100), nullable=False)  # "Google Maps", "Yelp"
+    website = Column(String(255))  # "https://maps.google.com"
+    icon = Column(String(50))  # Tabler icon name: "brand-google"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<BasBewertungsplattform {self.code}: {self.name}>"
+
+
 class BasColorPalette(Base):
     """
     Predefined color palette with 8 semantic colors (DaisyUI convention).

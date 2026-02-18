@@ -7,7 +7,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.com import ComUnternehmen
+from app.models.com import ComUnternehmen, ComUnternehmenBewertung
 from app.models.geo import GeoOrt, GeoKreis, GeoBundesland, GeoLand
 from app.models.partner import ApiPartner
 
@@ -35,6 +35,8 @@ class PartnerComService:
                 joinedload(ComUnternehmen.geo_ort)
                 .joinedload(GeoOrt.kreis)
                 .joinedload(GeoKreis.regierungsbezirk),
+                joinedload(ComUnternehmen.bewertungen)
+                .joinedload(ComUnternehmenBewertung.plattform),
             )
         )
 

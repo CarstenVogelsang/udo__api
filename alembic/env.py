@@ -31,13 +31,14 @@ from app.models.com import (
     ComUnternehmenIdentifikation, ComExternalId,
     ComMarke, ComSerie, ComLieferbeziehung, ComUnternehmenSortiment,
     ComDienstleistung, ComUnternehmenDienstleistung, ComBonitaet,
+    ComUnternehmenBewertung, ComUnternehmenQuelldaten,
 )
 from app.models.partner import ApiPartner
 from app.models.etl import (
     EtlSource, EtlTableMapping, EtlFieldMapping, EtlImportLog,
     EtlImportRecord, EtlImportFile, EtlMergeConfig, EtlMergeJoin,
 )
-from app.models.base import BasColorPalette, BasSprache
+from app.models.base import BasBewertungsplattform, BasColorPalette, BasSprache
 from app.models.plugin import (
     PlgKategorie, PlgPlugin, PlgPluginVersion, PlgProjekttyp,
     PlgPreis, PlgProjekt, PlgLizenz, PlgLizenzHistorie

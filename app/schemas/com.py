@@ -9,6 +9,47 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.geo import GeoOrtWithParents
 
 
+# ============ Classification Schemas ============
+
+class BrnBrancheRead(BaseModel):
+    """WZ-2008 industry classification."""
+    wz_code: str
+    bezeichnung: str
+    ebene: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComUnternehmenGoogleTypeRead(BaseModel):
+    """Google Place Type assigned to a company."""
+    gcid: str
+    ist_primaer: bool = False
+    ist_abgeleitet: bool = False
+    quelle: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComKlassifikationRead(BaseModel):
+    """UDO-specific classification."""
+    id: str
+    slug: str
+    name_de: str
+    dimension: str | None = None
+    beschreibung: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComUnternehmenKlassifikationRead(BaseModel):
+    """Classification assigned to a company."""
+    klassifikation: ComKlassifikationRead
+    ist_primaer: bool = False
+    quelle: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ============ Lookup Schemas ============
 
 class BasStatusRead(BaseModel):
@@ -110,6 +151,8 @@ class ComUnternehmenBase(BaseModel):
     email2: str | None = None
     telefon: str | None = None
     fax: str | None = None
+    wz_code: str | None = None
+    metadaten: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -165,6 +208,31 @@ class ComBonitaetRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ============ Bewertung Schemas ============
+
+class BasBewertungsplattformRead(BaseModel):
+    """Rating platform lookup entry."""
+    id: str
+    code: str
+    name: str
+    website: str | None = None
+    icon: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComUnternehmenBewertungRead(BaseModel):
+    """Platform rating for a company."""
+    id: str
+    plattform: BasBewertungsplattformRead
+    bewertung: float
+    anzahl_bewertungen: int | None = None
+    verteilung: dict | None = None
+    aktualisiert_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ============ Detail Schemas ============
 
 class ComUnternehmenDetail(ComUnternehmenWithGeo):
@@ -178,11 +246,15 @@ class ComUnternehmenDetail(ComUnternehmenWithGeo):
 
 class ComUnternehmenFullDetail(ComUnternehmenDetail):
     """Unternehmen with all nested relations (for single-entity views)."""
+    branche: BrnBrancheRead | None = None
+    google_type_zuordnungen: list[ComUnternehmenGoogleTypeRead] = []
+    klassifikation_zuordnungen: list[ComUnternehmenKlassifikationRead] = []
     organisationen: list['ComOrganisationSimple'] = []
     lieferbeziehungen: list[ComLieferbeziehungRead] = []
     sortimente: list[ComUnternehmenSortimentRead] = []
     dienstleistung_zuordnungen: list[ComUnternehmenDienstleistungRead] = []
     bonitaeten: list[ComBonitaetRead] = []
+    bewertungen: list[ComUnternehmenBewertungRead] = []
 
 
 # ============ List Response Schemas ============
@@ -204,6 +276,7 @@ class ComUnternehmenPartner(ComUnternehmenWithGeo):
     Partners can only see companies in their assigned countries.
     """
     legacy_id: int | None = None
+    bewertungen: list[ComUnternehmenBewertungRead] = []
 
 
 class UsageMeta(BaseModel):

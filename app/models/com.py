@@ -9,6 +9,8 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
+    Float,
+    JSON,
     String,
     Integer,
     DateTime,
@@ -128,8 +130,10 @@ class ComUnternehmen(Base):
     email2 = Column(String(255))  # Second email address
     telefon = Column(String(50))
     fax = Column(String(50))
+    metadaten = Column(JSON, default=dict)  # Rich data from external providers (google, yelp, etc.)
     sprache_id = Column(UUID, ForeignKey("bas_sprache.id"), nullable=True)
     geo_ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=True)  # kGeoOrt → GeoOrt
+    wz_code = Column(String(10), ForeignKey("brn_branche.wz_code"), nullable=True)  # Primary WZ-2008 code
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     geloescht_am = Column(DateTime, nullable=True)  # Soft delete timestamp
@@ -140,6 +144,42 @@ class ComUnternehmen(Base):
     geo_ort = relationship("GeoOrt", lazy="joined")
     # Relationship to language
     sprache = relationship("BasSprache", lazy="joined")
+    # Relationship to WZ-2008 Branche (primary classification)
+    branche = relationship("BrnBranche", lazy="joined")
+
+    # Relationship to Google Place Types (N:M)
+    google_type_zuordnungen = relationship(
+        "ComUnternehmenGoogleType",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    # Relationship to UDO Klassifikationen (N:M)
+    klassifikation_zuordnungen = relationship(
+        "ComUnternehmenKlassifikation",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
+    @property
+    def google_types(self) -> list:
+        """Returns list of Google Place Types (gcids)."""
+        return [z.gcid for z in self.google_type_zuordnungen]
+
+    @property
+    def primaerer_google_type(self) -> str | None:
+        """Returns the primary Google Place Type."""
+        for z in self.google_type_zuordnungen:
+            if z.ist_primaer:
+                return z.gcid
+        return None
+
+    @property
+    def klassifikationen(self) -> list:
+        """Returns list of UDO Klassifikationen."""
+        return [z.klassifikation for z in self.klassifikation_zuordnungen]
 
     # Relationship to Organisationen via junction table
     organisation_zuordnungen = relationship(
@@ -203,12 +243,29 @@ class ComUnternehmen(Base):
         cascade="all, delete-orphan"
     )
 
+    # Relationship to platform ratings (Google, Yelp, etc.)
+    bewertungen = relationship(
+        "ComUnternehmenBewertung",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    # Relationship to raw source data from external providers
+    quelldaten = relationship(
+        "ComUnternehmenQuelldaten",
+        back_populates="unternehmen",
+        lazy="noload",  # Not auto-loaded (large JSONs ~20KB each)
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("idx_unternehmen_geo_ort", "geo_ort_id"),
         Index("idx_unternehmen_kurzname", "kurzname"),
         Index("idx_unternehmen_legacy", "legacy_id"),
         Index("idx_unternehmen_sprache", "sprache_id"),
         Index("idx_unternehmen_status", "status_id"),
+        Index("idx_unternehmen_wz_code", "wz_code"),
     )
 
     def __repr__(self):
@@ -536,3 +593,179 @@ class ComBonitaet(Base):
 
     def __repr__(self):
         return f"<ComBonitaet {self.unternehmen_id}: Score {self.score}>"
+
+
+# ============ Platform Ratings (Google, Yelp, etc.) ============
+
+
+class ComUnternehmenBewertung(Base):
+    """Platform rating for a company (1:N, one per platform).
+
+    Stores aggregated ratings from external platforms (Google, Yelp, etc.).
+    UNIQUE constraint ensures one rating per platform per company (upsert pattern).
+    """
+    __tablename__ = "com_unternehmen_bewertung"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    plattform_id = Column(UUID, ForeignKey("bas_bewertungsplattform.id"), nullable=False)
+    bewertung = Column(Float, nullable=False)             # 4.4 (platform avg rating)
+    anzahl_bewertungen = Column(Integer)                   # 330 (total review count)
+    verteilung = Column(JSON)                              # {"1": 9, "2": 7, ...}
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="bewertungen")
+    plattform = relationship("BasBewertungsplattform", lazy="joined")
+
+    __table_args__ = (
+        Index("idx_bewertung_unternehmen", "unternehmen_id"),
+        Index("idx_bewertung_plattform", "plattform_id"),
+        Index(
+            "uq_bewertung_unternehmen_plattform",
+            "unternehmen_id", "plattform_id",
+            unique=True,
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ComUnternehmenBewertung {self.unternehmen_id}: {self.bewertung}>"
+
+
+# ============ Source Data from External Providers ============
+
+
+class ComUnternehmenQuelldaten(Base):
+    """Raw source data from external providers (1:N per Unternehmen).
+
+    Stores the complete API response for re-processing without
+    additional API costs. Each provider gets its own entry,
+    updated on re-sync (upsert on unternehmen_id + provider + provider_id).
+    """
+    __tablename__ = "com_unternehmen_quelldaten"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    provider = Column(String(50), nullable=False)      # "dataforseo", "google_places", "yelp"
+    provider_id = Column(String(255))                   # External ID (e.g., Google place_id)
+    rohdaten = Column(JSON, nullable=False)             # Complete raw JSON from provider
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="quelldaten")
+
+    __table_args__ = (
+        Index("idx_quelldaten_unternehmen", "unternehmen_id"),
+        Index(
+            "uq_quelldaten_provider",
+            "unternehmen_id", "provider", "provider_id",
+            unique=True,
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ComUnternehmenQuelldaten {self.provider}:{self.provider_id}>"
+
+
+# ============ Classification / Kategorisierung ============
+
+
+class ComUnternehmenGoogleType(Base):
+    """
+    Junction table: Unternehmen ↔ Google Place Types.
+
+    Stores Google Place Types for a company. Each company can have
+    multiple types, with one marked as primary. Types can also be
+    marked as derived (e.g., "restaurant" derived from "chinese_restaurant").
+
+    References brn_google_kategorie for type metadata (name_de, name_en).
+    """
+    __tablename__ = "com_unternehmen_google_type"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    gcid = Column(String(100), ForeignKey("brn_google_kategorie.gcid"), nullable=False)
+    ist_primaer = Column(Boolean, default=False)      # Primary type (max. 1 per company)
+    ist_abgeleitet = Column(Boolean, default=False)   # True if parent type (auto-derived)
+    quelle = Column(String(50))                       # "google_places", "dataforseo", "manuell"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="google_type_zuordnungen")
+    google_kategorie = relationship("BrnGoogleKategorie", lazy="joined")
+
+    __table_args__ = (
+        Index("uq_unt_gtype", "unternehmen_id", "gcid", unique=True),
+        Index("idx_unt_gtype_unternehmen", "unternehmen_id"),
+        Index("idx_unt_gtype_gcid", "gcid"),
+        Index("idx_unt_gtype_primaer", "ist_primaer", postgresql_where="ist_primaer = true"),
+    )
+
+    def __repr__(self):
+        primary = " (primary)" if self.ist_primaer else ""
+        return f"<ComUnternehmenGoogleType {self.gcid}{primary}>"
+
+
+class ComKlassifikation(Base):
+    """
+    UDO-specific classification taxonomy.
+
+    Provides German-specific categories that supplement Google Place Types.
+    E.g., "Döner-Imbiss", "Pommesbude", "Currywurstbude".
+
+    Can optionally map to a Google Place Type for cross-referencing.
+    Supports hierarchy via parent_id.
+    """
+    __tablename__ = "com_klassifikation"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    slug = Column(String(100), unique=True, nullable=False)  # "doener_imbiss"
+    name_de = Column(String(200), nullable=False)            # "Döner-Imbiss"
+    beschreibung = Column(Text)
+    dimension = Column(String(50))                           # "kueche", "betriebsart", "angebot"
+    google_mapping_gcid = Column(
+        String(100),
+        ForeignKey("brn_google_kategorie.gcid"),
+        nullable=True
+    )  # Optional: maps to Google category
+    parent_id = Column(UUID, ForeignKey("com_klassifikation.id"), nullable=True)
+    ist_aktiv = Column(Boolean, default=True)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent = relationship("ComKlassifikation", remote_side=[id], lazy="joined")
+    google_kategorie = relationship("BrnGoogleKategorie", lazy="joined")
+
+    __table_args__ = (
+        Index("idx_klassifikation_slug", "slug"),
+        Index("idx_klassifikation_dimension", "dimension"),
+        Index("idx_klassifikation_parent", "parent_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComKlassifikation {self.slug}>"
+
+
+class ComUnternehmenKlassifikation(Base):
+    """
+    Junction table: Unternehmen ↔ UDO Klassifikation.
+
+    Allows a company to have multiple UDO classifications,
+    with one optionally marked as primary per dimension.
+    """
+    __tablename__ = "com_unternehmen_klassifikation"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    klassifikation_id = Column(UUID, ForeignKey("com_klassifikation.id"), nullable=False)
+    ist_primaer = Column(Boolean, default=False)
+    quelle = Column(String(50))  # "manuell", "regel", "ki"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="klassifikation_zuordnungen")
+    klassifikation = relationship("ComKlassifikation", lazy="joined")
+
+    __table_args__ = (
+        Index("uq_unt_klass", "unternehmen_id", "klassifikation_id", unique=True),
+        Index("idx_unt_klass_unternehmen", "unternehmen_id"),
+        Index("idx_unt_klass_klassifikation", "klassifikation_id"),
+    )
