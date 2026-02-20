@@ -91,6 +91,8 @@ class BasRechtsform(Base):
     name = Column(String(100), nullable=False)  # "GmbH", "Inc.", "Ltd."
     name_lang = Column(String(200))  # "Gesellschaft mit beschränkter Haftung"
     land_code = Column(String(5))  # ISO 3166-1 alpha-2: "DE", "US", None=international
+    ist_favorit = Column(Boolean, default=False)
+    sortierung = Column(Integer, default=0)
     ist_aktiv = Column(Boolean, default=True)
     erstellt_am = Column(DateTime, default=datetime.utcnow)
 

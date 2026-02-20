@@ -19,6 +19,8 @@ class GeoLandBase(BaseModel):
     iso3: str | None = None
     kontinent: str | None = None
     ist_eu: bool | None = None
+    ist_favorit: bool | None = False
+    sortierung: int | None = 0
     primary_color: str | None = None
     secondary_color: str | None = None
 

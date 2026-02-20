@@ -133,8 +133,30 @@ class BasRechtsformRead(BaseModel):
     name: str
     name_lang: str | None = None
     land_code: str | None = None
+    ist_favorit: bool | None = False
+    sortierung: int | None = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BasRechtsformCreate(BaseModel):
+    """Create a new legal form."""
+    code: str
+    name: str
+    name_lang: str | None = None
+    land_code: str | None = None
+    ist_favorit: bool = False
+    sortierung: int = 0
+
+
+class BasRechtsformUpdate(BaseModel):
+    """Update an existing legal form."""
+    name: str | None = None
+    name_lang: str | None = None
+    land_code: str | None = None
+    ist_favorit: bool | None = None
+    sortierung: int | None = None
+    ist_aktiv: bool | None = None
 
 
 class BasMedienLizenzRead(BaseModel):

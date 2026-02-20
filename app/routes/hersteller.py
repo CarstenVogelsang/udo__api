@@ -22,6 +22,8 @@ from app.models.com import (
 )
 from app.schemas.com import (
     BasRechtsformRead,
+    BasRechtsformCreate,
+    BasRechtsformUpdate,
     BasMedienLizenzRead,
     ComProfiltextRead,
     ComProfiltextCreate,
@@ -48,13 +50,85 @@ async def list_rechtsformen(
     admin: ApiPartner = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Alle Rechtsformen auflisten (für Recherche-KI Lookups)."""
+    """Alle Rechtsformen auflisten (Favoriten zuerst, dann nach Land+Sortierung)."""
     result = await db.execute(
         select(BasRechtsform)
         .where(BasRechtsform.ist_aktiv == True)  # noqa: E712
-        .order_by(BasRechtsform.land_code, BasRechtsform.name)
+        .order_by(
+            BasRechtsform.land_code,
+            BasRechtsform.ist_favorit.desc(),
+            BasRechtsform.sortierung,
+            BasRechtsform.name,
+        )
     )
     return result.scalars().all()
+
+
+@router.post(
+    "/rechtsformen",
+    response_model=BasRechtsformRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Referenzdaten"],
+)
+async def create_rechtsform(
+    data: BasRechtsformCreate,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Neue Rechtsform anlegen."""
+    # Check uniqueness by code
+    result = await db.execute(
+        select(BasRechtsform).where(BasRechtsform.code == data.code)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Rechtsform mit Code '{data.code}' existiert bereits")
+
+    rechtsform = BasRechtsform(**data.model_dump())
+    db.add(rechtsform)
+    await db.commit()
+    await db.refresh(rechtsform)
+    return rechtsform
+
+
+@router.patch("/rechtsformen/{rechtsform_id}", response_model=BasRechtsformRead, tags=["Referenzdaten"])
+async def update_rechtsform(
+    rechtsform_id: str,
+    data: BasRechtsformUpdate,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rechtsform bearbeiten (partial update)."""
+    result = await db.execute(
+        select(BasRechtsform).where(BasRechtsform.id == rechtsform_id)
+    )
+    rechtsform = result.scalar_one_or_none()
+    if not rechtsform:
+        raise HTTPException(status_code=404, detail="Rechtsform nicht gefunden")
+
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(rechtsform, key, value)
+
+    await db.commit()
+    await db.refresh(rechtsform)
+    return rechtsform
+
+
+@router.delete("/rechtsformen/{rechtsform_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Referenzdaten"])
+async def delete_rechtsform(
+    rechtsform_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rechtsform deaktivieren (Soft-Delete via ist_aktiv=False)."""
+    result = await db.execute(
+        select(BasRechtsform).where(BasRechtsform.id == rechtsform_id)
+    )
+    rechtsform = result.scalar_one_or_none()
+    if not rechtsform:
+        raise HTTPException(status_code=404, detail="Rechtsform nicht gefunden")
+
+    rechtsform.ist_aktiv = False
+    await db.commit()
 
 
 @router.get("/medien-lizenzen", response_model=list[BasMedienLizenzRead], tags=["Referenzdaten"])

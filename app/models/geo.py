@@ -48,6 +48,8 @@ class GeoLand(Base):
     iso3 = Column(String(3))  # ISO 3166-1 alpha-3: "DEU"
     kontinent = Column(String(100))
     ist_eu = Column(Boolean, default=False)
+    ist_favorit = Column(Boolean, default=False)
+    sortierung = Column(Integer, default=0)
     landesvorwahl = Column(String(20))
     legacy_id = Column(String(10))  # Original kLand_ISO from legacy DB
     color_palette_id = Column(UUID, ForeignKey("bas_color_palette.id"), nullable=True)
