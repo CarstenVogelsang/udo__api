@@ -5,7 +5,7 @@ Prefix: bas_ (base)
 """
 from datetime import datetime
 
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Index, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Index, UniqueConstraint
 
 from app.models.geo import Base, UUID, generate_uuid
 
@@ -75,6 +75,62 @@ class BasBewertungsplattform(Base):
 
     def __repr__(self) -> str:
         return f"<BasBewertungsplattform {self.code}: {self.name}>"
+
+
+class BasRechtsform(Base):
+    """
+    Legal form reference table with country association.
+
+    Each legal form belongs to a specific country (or is international).
+    Examples: GmbH (DE), Inc. (US), Ltd. (GB), SA (FR/ES)
+    """
+    __tablename__ = "bas_rechtsform"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    code = Column(String(30), unique=True, nullable=False, index=True)  # "gmbh", "inc", "ltd"
+    name = Column(String(100), nullable=False)  # "GmbH", "Inc.", "Ltd."
+    name_lang = Column(String(200))  # "Gesellschaft mit beschränkter Haftung"
+    land_code = Column(String(5))  # ISO 3166-1 alpha-2: "DE", "US", None=international
+    ist_aktiv = Column(Boolean, default=True)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_rechtsform_land", "land_code"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<BasRechtsform {self.code}: {self.name} ({self.land_code})>"
+
+
+class BasMedienLizenz(Base):
+    """
+    Media license reference table.
+
+    Categorizes license types for images, logos, and other media.
+    Enables filtering: "show images without license" or "problematic licenses".
+
+    kategorie values:
+    - "frei": Free use (PD, CC0, CC-BY)
+    - "eingeschraenkt": Usable with conditions (CC-BY-SA, CC-BY-NC)
+    - "geschuetzt": Trademark/Copyright, use only with permission
+    """
+    __tablename__ = "bas_medien_lizenz"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    code = Column(String(50), unique=True, nullable=False, index=True)  # "pd_textlogo", "cc_by_4"
+    name = Column(String(100), nullable=False)  # "PD-textlogo", "CC BY 4.0"
+    beschreibung = Column(Text)  # "Public Domain — reine Textlogos ohne Schöpfungshöhe"
+    kategorie = Column(String(30), nullable=False)  # "frei", "eingeschraenkt", "geschuetzt"
+    url = Column(String(500))  # Link to license text
+    ist_aktiv = Column(Boolean, default=True)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_medien_lizenz_kategorie", "kategorie"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<BasMedienLizenz {self.code}: {self.name} ({self.kategorie})>"
 
 
 class BasColorPalette(Base):

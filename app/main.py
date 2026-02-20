@@ -17,6 +17,7 @@ from app.routes.admin import router as admin_router
 from app.routes.etl import router as etl_router
 from app.routes.com import router as com_router
 from app.routes.organisation import router as organisation_router
+from app.routes.klassifikation import router as klassifikation_router
 from app.routes.auth import router as auth_router
 from app.routes.plugin import router as plugin_router
 from app.routes.projekt import router as projekt_router
@@ -33,6 +34,8 @@ from app.routes.prod import router as prod_router
 from app.routes.marke import router as marke_router
 from app.routes.merge import router as merge_router
 from app.routes.partner_recherche import router as partner_recherche_router
+from app.routes.hersteller import router as hersteller_router
+from app.routes.hersteller_recherche import router as hersteller_recherche_router
 from app.openapi_docs import setup_docs
 
 settings = get_settings()
@@ -84,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(etl_router, prefix=settings.api_prefix)
     app.include_router(com_router, prefix=settings.api_prefix)
     app.include_router(organisation_router, prefix=settings.api_prefix)
+    app.include_router(klassifikation_router, prefix=settings.api_prefix)
     # Plugin Marketplace routers
     app.include_router(plugin_router, prefix=settings.api_prefix)
     app.include_router(projekt_router, prefix=settings.api_prefix)
@@ -104,6 +108,9 @@ def create_app() -> FastAPI:
     app.include_router(merge_router, prefix=settings.api_prefix)
     # Recherche
     app.include_router(partner_recherche_router, prefix=settings.api_prefix)
+    # Hersteller-Recherche (Profiltexte, Medien, Quellen, Vertriebsstruktur, Referenzdaten)
+    app.include_router(hersteller_router, prefix=settings.api_prefix)
+    app.include_router(hersteller_recherche_router, prefix=settings.api_prefix)
 
     # Setup custom role-based documentation
     setup_docs(app)

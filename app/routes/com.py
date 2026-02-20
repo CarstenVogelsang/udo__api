@@ -12,11 +12,13 @@ from app.auth import require_admin, require_superadmin
 from app.models.partner import ApiPartner
 from app.services.com import ComService
 from app.services.kontakt import KontaktService
+from app.services.klassifikation import KlassifikationService
 from app.services.smart_filter import SmartFilterService
 from app.services.smart_filter_parser import parse_unternehmen_filter, SmartFilterError
 from app.schemas.com import (
     ComUnternehmenWithGeo,
     ComUnternehmenDetail,
+    ComUnternehmenFullDetail,
     ComUnternehmenList,
     ComUnternehmenCreate,
     ComUnternehmenUpdate,
@@ -25,6 +27,9 @@ from app.schemas.com import (
     ComKontaktList,
     ComKontaktCreate,
     ComKontaktUpdate,
+    ComUnternehmenKlassifikationRead,
+    ComUnternehmenKlassifikationDetail,
+    ComUnternehmenKlassifikationAssign,
     BulkActionRequest,
     BulkActionResponse,
 )
@@ -42,6 +47,8 @@ async def list_unternehmen(
         min_length=2,
         description="Suche nach Kurzname oder Firmierung"
     ),
+    wz_code: str | None = Query(None, description="Filter nach WZ-Code (z.B. 56.10.1)"),
+    google_type: str | None = Query(None, description="Filter nach Google Type (gcid, z.B. gcid:chinese_restaurant)"),
     smart_filter_id: str | None = Query(None, description="Gespeicherten Smart Filter anwenden"),
     skip: int = Query(0, ge=0, description="Anzahl zu überspringender Einträge"),
     limit: int = Query(100, ge=1, le=1000, description="Maximale Anzahl Einträge"),
@@ -53,6 +60,8 @@ async def list_unternehmen(
     **Filter:**
     - `geo_ort_id`: Nur Unternehmen aus diesem Ort
     - `suche`: Textsuche in Kurzname und Firmierung
+    - `wz_code`: Filter nach WZ-Code (Branchenklassifikation, z.B. 56.10.1)
+    - `google_type`: Filter nach Google Place Type (gcid, z.B. gcid:chinese_restaurant)
     - `smart_filter_id`: Gespeicherten Smart Filter anwenden (kombinierbar mit suche/geo_ort_id)
     - `include_deleted`: Auch soft-gelöschte Unternehmen anzeigen
 
@@ -77,6 +86,8 @@ async def list_unternehmen(
     return await service.get_unternehmen_list(
         geo_ort_id=geo_ort_id,
         suche=suche,
+        wz_code=wz_code,
+        google_type=google_type,
         skip=skip,
         limit=limit,
         filter_conditions=filter_conditions,
@@ -171,7 +182,7 @@ async def restore_unternehmen(
         raise HTTPException(status_code=404, detail="Unternehmen nicht gefunden")
 
 
-@router.get("/{unternehmen_id}", response_model=ComUnternehmenDetail)
+@router.get("/{unternehmen_id}", response_model=ComUnternehmenFullDetail)
 async def get_unternehmen(
     unternehmen_id: str,
     admin: ApiPartner = Depends(require_superadmin),
@@ -439,3 +450,108 @@ async def delete_kontakt(
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Kontakt nicht gefunden")
+
+
+# ============ Klassifikation Endpoints ============
+
+
+@router.get(
+    "/{unternehmen_id}/klassifikationen",
+    response_model=list[ComUnternehmenKlassifikationRead]
+)
+async def get_unternehmen_klassifikationen(
+    unternehmen_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Klassifikationen eines Unternehmens abrufen (nur Superadmin).
+
+    Gibt alle UDO-Klassifikationen zurück, die diesem Unternehmen zugeordnet sind.
+    """
+    # Verify unternehmen exists
+    com_service = ComService(db)
+    unternehmen = await com_service.get_unternehmen_by_id(unternehmen_id)
+    if not unternehmen:
+        raise HTTPException(status_code=404, detail="Unternehmen nicht gefunden")
+
+    service = KlassifikationService(db)
+    return await service.get_klassifikationen_for_unternehmen(unternehmen_id)
+
+
+@router.post(
+    "/{unternehmen_id}/klassifikationen/{klassifikation_id}",
+    response_model=ComUnternehmenKlassifikationDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def assign_klassifikation_to_unternehmen(
+    unternehmen_id: str,
+    klassifikation_id: str,
+    data: ComUnternehmenKlassifikationAssign | None = None,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Klassifikation zu Unternehmen zuordnen (nur Superadmin).
+
+    - **unternehmen_id**: UUID des Unternehmens
+    - **klassifikation_id**: UUID der Klassifikation
+
+    **Request Body (optional):**
+    - `ist_primaer`: Als primäre Klassifikation markieren
+    - `quelle`: Quelle der Zuordnung (manuell, regel, ki)
+    """
+    # Verify unternehmen exists
+    com_service = ComService(db)
+    unternehmen = await com_service.get_unternehmen_by_id(unternehmen_id)
+    if not unternehmen:
+        raise HTTPException(status_code=404, detail="Unternehmen nicht gefunden")
+
+    service = KlassifikationService(db)
+
+    # Verify klassifikation exists
+    klass = await service.get_klassifikation_by_id(klassifikation_id)
+    if not klass:
+        raise HTTPException(status_code=404, detail="Klassifikation nicht gefunden")
+
+    ist_primaer = data.ist_primaer if data else False
+    quelle = data.quelle if data else "manuell"
+
+    result = await service.assign_klassifikation(
+        unternehmen_id=unternehmen_id,
+        klassifikation_id=klassifikation_id,
+        ist_primaer=ist_primaer,
+        quelle=quelle,
+    )
+    if not result:
+        raise HTTPException(status_code=409, detail="Zuordnung existiert bereits")
+
+    # Reload with full data
+    klassifikationen = await service.get_klassifikationen_for_unternehmen(unternehmen_id)
+    for k in klassifikationen:
+        if str(k.klassifikation_id) == klassifikation_id:
+            return k
+
+    return result
+
+
+@router.delete(
+    "/{unternehmen_id}/klassifikationen/{klassifikation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_klassifikation_from_unternehmen(
+    unternehmen_id: str,
+    klassifikation_id: str,
+    admin: ApiPartner = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Klassifikation von Unternehmen entfernen (nur Superadmin).
+
+    - **unternehmen_id**: UUID des Unternehmens
+    - **klassifikation_id**: UUID der Klassifikation
+    """
+    service = KlassifikationService(db)
+    removed = await service.remove_klassifikation(unternehmen_id, klassifikation_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Zuordnung nicht gefunden")

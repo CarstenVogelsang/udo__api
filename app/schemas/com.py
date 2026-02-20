@@ -3,10 +3,10 @@ Pydantic Schemas for Company (Unternehmen) API responses.
 
 Provides nested GeoOrt hierarchy for each company.
 """
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.geo import GeoOrtWithParents
+from app.schemas.geo import GeoLandBase, GeoOrtWithParents
 
 
 # ============ Classification Schemas ============
@@ -41,6 +41,42 @@ class ComKlassifikationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ComKlassifikationDetail(ComKlassifikationRead):
+    """Klassifikation with all fields including parent and timestamps."""
+    google_mapping_gcid: str | None = None
+    parent_id: str | None = None
+    ist_aktiv: bool = True
+    erstellt_am: datetime | None = None
+    aktualisiert_am: datetime | None = None
+
+
+class ComKlassifikationCreate(BaseModel):
+    """Schema for creating a new Klassifikation."""
+    slug: str
+    name_de: str
+    dimension: str | None = None
+    beschreibung: str | None = None
+    google_mapping_gcid: str | None = None
+    parent_id: str | None = None
+
+
+class ComKlassifikationUpdate(BaseModel):
+    """Schema for updating a Klassifikation (partial)."""
+    slug: str | None = None
+    name_de: str | None = None
+    dimension: str | None = None
+    beschreibung: str | None = None
+    google_mapping_gcid: str | None = None
+    parent_id: str | None = None
+    ist_aktiv: bool | None = None
+
+
+class ComKlassifikationList(BaseModel):
+    """Paginated list of classifications."""
+    items: list[ComKlassifikationDetail]
+    total: int
+
+
 class ComUnternehmenKlassifikationRead(BaseModel):
     """Classification assigned to a company."""
     klassifikation: ComKlassifikationRead
@@ -48,6 +84,20 @@ class ComUnternehmenKlassifikationRead(BaseModel):
     quelle: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ComUnternehmenKlassifikationDetail(ComUnternehmenKlassifikationRead):
+    """Junction detail with ID and timestamps."""
+    id: str
+    unternehmen_id: str
+    klassifikation_id: str
+    erstellt_am: datetime | None = None
+
+
+class ComUnternehmenKlassifikationAssign(BaseModel):
+    """Schema for assigning a classification to a company."""
+    ist_primaer: bool = False
+    quelle: str = "manuell"
 
 
 # ============ Lookup Schemas ============
@@ -74,12 +124,165 @@ class BasSpracheRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ============ Rechtsform / Medien-Lizenz Schemas ============
+
+class BasRechtsformRead(BaseModel):
+    """Legal form reference."""
+    id: str
+    code: str
+    name: str
+    name_lang: str | None = None
+    land_code: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BasMedienLizenzRead(BaseModel):
+    """Media license type reference."""
+    id: str
+    code: str
+    name: str
+    beschreibung: str | None = None
+    kategorie: str
+    url: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============ Profiltext / Medien / Quelle / Vertriebsstruktur Schemas ============
+
+class ComProfiltextRead(BaseModel):
+    """Profile text for company, brand, or series."""
+    id: str
+    typ: str  # "b2c", "b2b"
+    sprache: str
+    text: str
+    quelle: str | None = None
+    erstellt_am: datetime | None = None
+    aktualisiert_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComProfiltextCreate(BaseModel):
+    """Schema for creating/upserting a profile text."""
+    typ: str  # "b2c", "b2b"
+    sprache: str = "de"
+    text: str
+    quelle: str = "manuell"
+
+
+class ComProfiltextUpdate(BaseModel):
+    """Schema for updating a profile text (partial)."""
+    text: str | None = None
+    quelle: str | None = None
+
+
+class ComMedienRead(BaseModel):
+    """Media asset (logo, image) for company or brand."""
+    id: str
+    medienart: str
+    dateiname: str | None = None
+    dateiformat: str | None = None
+    url_quelle: str | None = None
+    alt_text: str | None = None
+    sortierung: int = 0
+    ist_heruntergeladen: bool = False
+    download_fehler: str | None = None
+    lizenz: BasMedienLizenzRead | None = None
+    lizenz_hinweis: str | None = None
+    erstellt_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComMedienCreate(BaseModel):
+    """Schema for creating a media asset."""
+    medienart: str  # "LOGO", "LOGO_ICON", "TITELBILD", etc.
+    dateiname: str | None = None
+    dateiformat: str | None = None
+    url_quelle: str | None = None
+    alt_text: str | None = None
+    sortierung: int = 0
+    lizenz_id: str | None = None
+    lizenz_hinweis: str | None = None
+
+
+class ComMedienUpdate(BaseModel):
+    """Schema for updating a media asset (partial)."""
+    medienart: str | None = None
+    dateiname: str | None = None
+    dateiformat: str | None = None
+    url_quelle: str | None = None
+    alt_text: str | None = None
+    sortierung: int | None = None
+    lizenz_id: str | None = None
+    lizenz_hinweis: str | None = None
+    ist_heruntergeladen: bool | None = None
+    download_fehler: str | None = None
+
+
+class ComQuelleRead(BaseModel):
+    """Source reference for a company."""
+    id: str
+    url: str
+    beschreibung: str | None = None
+    abrufdatum: date | None = None
+    quelle_typ: str | None = None
+    erstellt_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComQuelleCreate(BaseModel):
+    """Schema for creating/upserting a source reference."""
+    url: str
+    beschreibung: str | None = None
+    abrufdatum: date | None = None
+    quelle_typ: str = "recherche_ki"
+
+
+class ComVertriebsstrukturRead(BaseModel):
+    """Manufacturer distribution channel."""
+    id: str
+    hersteller_id: str
+    lieferant_id: str
+    rolle: str
+    region: str | None = None
+    ist_empfohlen: bool = False
+    empfehlung_text: str | None = None
+    sortierung: int = 0
+    erstellt_am: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComVertriebsstrukturCreate(BaseModel):
+    """Schema for creating a distribution channel entry."""
+    lieferant_id: str
+    rolle: str  # "tochtergesellschaft", "hauptlieferant", "grosshaendler", etc.
+    region: str | None = None
+    ist_empfohlen: bool = False
+    empfehlung_text: str | None = None
+    sortierung: int = 0
+
+
+class ComVertriebsstrukturUpdate(BaseModel):
+    """Schema for updating a distribution channel (partial)."""
+    rolle: str | None = None
+    region: str | None = None
+    ist_empfohlen: bool | None = None
+    empfehlung_text: str | None = None
+    sortierung: int | None = None
+
+
 # ============ Brand / Series Schemas ============
 
 class ComSerieRead(BaseModel):
     """Product series belonging to a brand."""
     id: str
     name: str
+    profiltexte: list[ComProfiltextRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,6 +293,8 @@ class ComMarkeRead(BaseModel):
     name: str
     kurzname: str | None = None
     serien: list[ComSerieRead] = []
+    profiltexte: list[ComProfiltextRead] = []
+    medien: list[ComMedienRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -153,6 +358,12 @@ class ComUnternehmenBase(BaseModel):
     fax: str | None = None
     wz_code: str | None = None
     metadaten: dict | None = None
+    # Hersteller-spezifische Felder
+    gruendungsjahr: int | None = None
+    gruender: str | None = None
+    herkunftsland_id: str | None = None
+    rechtsform_id: str | None = None
+    gpsr_default_bevollmaechtigter_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -247,6 +458,8 @@ class ComUnternehmenDetail(ComUnternehmenWithGeo):
 class ComUnternehmenFullDetail(ComUnternehmenDetail):
     """Unternehmen with all nested relations (for single-entity views)."""
     branche: BrnBrancheRead | None = None
+    herkunftsland: GeoLandBase | None = None
+    rechtsform: BasRechtsformRead | None = None
     google_type_zuordnungen: list[ComUnternehmenGoogleTypeRead] = []
     klassifikation_zuordnungen: list[ComUnternehmenKlassifikationRead] = []
     organisationen: list['ComOrganisationSimple'] = []
@@ -255,6 +468,11 @@ class ComUnternehmenFullDetail(ComUnternehmenDetail):
     dienstleistung_zuordnungen: list[ComUnternehmenDienstleistungRead] = []
     bonitaeten: list[ComBonitaetRead] = []
     bewertungen: list[ComUnternehmenBewertungRead] = []
+    # Hersteller-Recherche Relations
+    profiltexte: list[ComProfiltextRead] = []
+    medien: list[ComMedienRead] = []
+    quellen: list[ComQuelleRead] = []
+    vertriebskanaele: list[ComVertriebsstrukturRead] = []
 
 
 # ============ List Response Schemas ============
@@ -446,6 +664,12 @@ class ComUnternehmenCreate(BaseModel):
     geo_ort_id: str | None = None
     sprache_id: str | None = None
     legacy_id: int | None = None
+    # Hersteller-spezifische Felder
+    gruendungsjahr: int | None = None
+    gruender: str | None = None
+    herkunftsland_id: str | None = None
+    rechtsform_id: str | None = None
+    gpsr_default_bevollmaechtigter_id: str | None = None
 
 
 class ComUnternehmenUpdate(BaseModel):
@@ -464,6 +688,12 @@ class ComUnternehmenUpdate(BaseModel):
     geo_ort_id: str | None = None
     sprache_id: str | None = None
     status_datum: datetime | None = None
+    # Hersteller-spezifische Felder
+    gruendungsjahr: int | None = None
+    gruender: str | None = None
+    herkunftsland_id: str | None = None
+    rechtsform_id: str | None = None
+    gpsr_default_bevollmaechtigter_id: str | None = None
 
 
 # ============ Bulk Action Schemas ============

@@ -66,6 +66,7 @@ class DataForSeoProvider(RecherchProviderBase):
             return SuchErgebnis(ergebnisse=[])
 
         results: list[RohErgebnisData] = []
+        raw_items_all: list[dict] = []
         api_kosten_usd = 0.0
 
         # DataForSEO uses offset-based pagination
@@ -150,6 +151,8 @@ class DataForSeoProvider(RecherchProviderBase):
                     break
 
                 for item in items:
+                    raw_items_all.append(item)
+
                     # Log first raw item for debugging
                     if not results:
                         logger.info(
@@ -172,7 +175,11 @@ class DataForSeoProvider(RecherchProviderBase):
             f"'{suchbegriff}' at ({lat}, {lng}) r={radius_km}km "
             f"(API cost: ${api_kosten_usd:.4f})"
         )
-        return SuchErgebnis(ergebnisse=results, api_kosten_usd=api_kosten_usd)
+        return SuchErgebnis(
+            ergebnisse=results,
+            api_kosten_usd=api_kosten_usd,
+            raw_items=raw_items_all,
+        )
 
     def _normalize(self, item: dict) -> RohErgebnisData | None:
         """Convert a DataForSEO Business Listing to normalized format."""
@@ -196,11 +203,5 @@ class DataForSeoProvider(RecherchProviderBase):
             kategorie=item.get("category"),
             lat=item.get("latitude"),
             lng=item.get("longitude"),
-            rohdaten={
-                "cid": item.get("cid"),
-                "rating": item.get("rating"),
-                "reviews_count": item.get("reviews_count"),
-                "category_ids": item.get("category_ids", []),
-                "is_claimed": item.get("is_claimed"),
-            },
+            rohdaten=item,
         )

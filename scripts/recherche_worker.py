@@ -16,9 +16,11 @@ Deployment:
 """
 import argparse
 import asyncio
+import json
 import logging
 import signal
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add project root to path
@@ -184,6 +186,7 @@ async def verarbeite_auftrag(db_session, auftrag, registry: ProviderRegistry):
         # 3. Run searches
         all_results: list[RohErgebnisData] = []
         einkaufskosten_usd = 0.0
+        raw_export_data = []
         for provider in providers:
             try:
                 such_ergebnis = await provider.suchen(
@@ -191,9 +194,16 @@ async def verarbeite_auftrag(db_session, auftrag, registry: ProviderRegistry):
                     lng=params["lng"],
                     radius_m=params["radius_m"],
                     suchbegriff=params["suchbegriff"],
+                    max_ergebnisse=500,
                 )
                 all_results.extend(such_ergebnis.ergebnisse)
                 einkaufskosten_usd += such_ergebnis.api_kosten_usd
+                raw_export_data.append({
+                    "provider": provider.name,
+                    "api_kosten_usd": such_ergebnis.api_kosten_usd,
+                    "anzahl_items": len(such_ergebnis.raw_items),
+                    "items": such_ergebnis.raw_items,
+                })
                 logger.info(
                     f"Provider '{provider.name}': {len(such_ergebnis.ergebnisse)} results, "
                     f"API cost: ${such_ergebnis.api_kosten_usd:.4f}"
@@ -203,6 +213,18 @@ async def verarbeite_auftrag(db_session, auftrag, registry: ProviderRegistry):
 
         if not all_results:
             logger.warning(f"No results found for order {auftrag.id[:8]}...")
+
+        # 3b. Save raw API response to JSON file for inspection
+        output_dir = Path(__file__).parent.parent / "data" / "recherche"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        raw_file = output_dir / f"{auftrag.id}_raw.json"
+        raw_file.write_text(json.dumps({
+            "auftrag_id": auftrag.id,
+            "zeitpunkt": datetime.utcnow().isoformat(),
+            "suchparameter": params,
+            "provider": raw_export_data,
+        }, indent=2, ensure_ascii=False, default=str))
+        logger.info(f"Raw response saved to: {raw_file}")
 
         # 4. Store raw results
         for roh_data in all_results:

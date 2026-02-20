@@ -1,0 +1,41 @@
+{
+  "_comment": "Unternehmenstyp-Klassifikationen für Hersteller-Recherche",
+  "klassifikationen": [
+    {
+      "slug": "hersteller",
+      "name_de": "Hersteller",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Produziert eigene Waren unter eigenen Marken"
+    },
+    {
+      "slug": "lieferant",
+      "name_de": "Lieferant",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Beliefert Händler mit Waren (Hersteller oder Großhändler)"
+    },
+    {
+      "slug": "grosshaendler",
+      "name_de": "Großhändler",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Kauft in großen Mengen ein und verkauft an Händler weiter"
+    },
+    {
+      "slug": "haendler",
+      "name_de": "Händler",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Verkauft Waren an Endkunden (stationär oder online)"
+    },
+    {
+      "slug": "importeur",
+      "name_de": "Importeur",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Importiert Waren aus dem Ausland in den lokalen Markt"
+    },
+    {
+      "slug": "dienstleister",
+      "name_de": "Dienstleister",
+      "dimension": "unternehmenstyp",
+      "beschreibung": "Erbringt Dienstleistungen (kein Warenhandel)"
+    }
+  ]
+}

@@ -42,6 +42,7 @@ class SuchErgebnis:
     """
     ergebnisse: list[RohErgebnisData]
     api_kosten_usd: float = 0.0  # Actual cost reported by the API (in USD)
+    raw_items: list[dict] = field(default_factory=list)  # Full unprocessed API items
 
 
 class RecherchProviderBase(ABC):

@@ -7,7 +7,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.com import ComUnternehmen, ComKontakt
+from app.models.com import ComUnternehmen, ComKontakt, ComUnternehmenGoogleType
 from app.models.geo import GeoOrt, GeoKreis, GeoBundesland
 
 
@@ -21,6 +21,8 @@ class ComService:
         self,
         geo_ort_id: str | None = None,
         suche: str | None = None,
+        wz_code: str | None = None,
+        google_type: str | None = None,
         skip: int = 0,
         limit: int = 100,
         filter_conditions: list | None = None,
@@ -32,6 +34,8 @@ class ComService:
         Args:
             geo_ort_id: Filter by GeoOrt UUID
             suche: Search in kurzname and firmierung
+            wz_code: Filter by WZ-Code (industry classification)
+            google_type: Filter by Google Place Type (gcid)
             skip: Pagination offset
             limit: Pagination limit
 
@@ -67,6 +71,17 @@ class ComService:
                     ComUnternehmen.firmierung.ilike(search_pattern),
                 )
             )
+        if wz_code:
+            base_query = base_query.where(ComUnternehmen.wz_code == wz_code)
+        if google_type:
+            # Subquery to find companies with this Google Type
+            base_query = base_query.where(
+                ComUnternehmen.id.in_(
+                    select(ComUnternehmenGoogleType.unternehmen_id).where(
+                        ComUnternehmenGoogleType.gcid == google_type
+                    )
+                )
+            )
         if filter_conditions:
             for condition in filter_conditions:
                 base_query = base_query.where(condition)
@@ -83,6 +98,16 @@ class ComService:
                 or_(
                     ComUnternehmen.kurzname.ilike(search_pattern),
                     ComUnternehmen.firmierung.ilike(search_pattern),
+                )
+            )
+        if wz_code:
+            count_query = count_query.where(ComUnternehmen.wz_code == wz_code)
+        if google_type:
+            count_query = count_query.where(
+                ComUnternehmen.id.in_(
+                    select(ComUnternehmenGoogleType.unternehmen_id).where(
+                        ComUnternehmenGoogleType.gcid == google_type
+                    )
                 )
             )
         if filter_conditions:
@@ -108,6 +133,18 @@ class ComService:
                     or_(
                         ComUnternehmen.kurzname.ilike(search_pattern),
                         ComUnternehmen.firmierung.ilike(search_pattern),
+                    )
+                )
+            if wz_code:
+                unfiltered_count_query = unfiltered_count_query.where(
+                    ComUnternehmen.wz_code == wz_code
+                )
+            if google_type:
+                unfiltered_count_query = unfiltered_count_query.where(
+                    ComUnternehmen.id.in_(
+                        select(ComUnternehmenGoogleType.unternehmen_id).where(
+                            ComUnternehmenGoogleType.gcid == google_type
+                        )
                     )
                 )
             total_unfiltered = (await self.db.execute(unfiltered_count_query)).scalar()

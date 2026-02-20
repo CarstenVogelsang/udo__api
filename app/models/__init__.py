@@ -7,7 +7,13 @@ from app.models.geo import (
     GeoOrt,
     GeoOrtsteil,
 )
-from app.models.base import BasBewertungsplattform, BasColorPalette, BasSprache
+from app.models.base import (
+    BasBewertungsplattform,
+    BasColorPalette,
+    BasMedienLizenz,
+    BasRechtsform,
+    BasSprache,
+)
 from app.models.partner import ApiPartner
 from app.models.etl import (
     EtlSource,
@@ -35,6 +41,11 @@ from app.models.com import (
     ComUnternehmenGoogleType,
     ComKlassifikation,
     ComUnternehmenKlassifikation,
+    # Hersteller-Recherche models
+    ComProfiltext,
+    ComMedien,
+    ComQuelle,
+    ComVertriebsstruktur,
 )
 from app.models.usage import (
     ApiUsage,
@@ -91,6 +102,8 @@ __all__ = [
     # Base Models
     "BasBewertungsplattform",
     "BasColorPalette",
+    "BasMedienLizenz",
+    "BasRechtsform",
     "BasSprache",
     # Geo Models
     "GeoLand",
@@ -126,6 +139,11 @@ __all__ = [
     "ComUnternehmenGoogleType",
     "ComKlassifikation",
     "ComUnternehmenKlassifikation",
+    # Hersteller-Recherche Models
+    "ComProfiltext",
+    "ComMedien",
+    "ComQuelle",
+    "ComVertriebsstruktur",
     # Usage Tracking
     "ApiUsage",
     "ApiUsageDaily",

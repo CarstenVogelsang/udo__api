@@ -1,0 +1,194 @@
+{
+  "_comment": "UDO-spezifische Klassifikationen für Gastronomie (ergänzend zu Google Place Types)",
+  "klassifikationen": [
+    {
+      "slug": "doener_imbiss",
+      "name_de": "Döner-Imbiss",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:turkish_restaurant",
+      "beschreibung": "Imbiss mit Fokus auf Döner Kebab und türkische Schnellgerichte"
+    },
+    {
+      "slug": "pommes_imbiss",
+      "name_de": "Pommes-Imbiss",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:fast_food_restaurant",
+      "beschreibung": "Imbiss mit Fokus auf Pommes frites und Snacks"
+    },
+    {
+      "slug": "currywurst_bude",
+      "name_de": "Currywurstbude",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:fast_food_restaurant",
+      "beschreibung": "Imbiss mit Fokus auf Currywurst"
+    },
+    {
+      "slug": "asia_imbiss",
+      "name_de": "Asia-Imbiss",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:asian_restaurant",
+      "beschreibung": "Imbiss mit asiatischen Schnellgerichten"
+    },
+    {
+      "slug": "grillrestaurant",
+      "name_de": "Grillrestaurant",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:barbecue_restaurant",
+      "beschreibung": "Restaurant mit Fokus auf Grillgerichte"
+    },
+    {
+      "slug": "stehcafe",
+      "name_de": "Stehcafé",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:cafe",
+      "beschreibung": "Café ohne Sitzplätze, nur Stehplätze"
+    },
+    {
+      "slug": "eiscafe",
+      "name_de": "Eiscafé",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:ice_cream_shop",
+      "beschreibung": "Café mit Fokus auf Speiseeis"
+    },
+    {
+      "slug": "baeckerei_cafe",
+      "name_de": "Bäckerei-Café",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:bakery",
+      "beschreibung": "Bäckerei mit Café-Bereich"
+    },
+    {
+      "slug": "biergarten",
+      "name_de": "Biergarten",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:beer_garden",
+      "beschreibung": "Außengastronomie mit Fokus auf Bier"
+    },
+    {
+      "slug": "kneipe",
+      "name_de": "Kneipe",
+      "dimension": "betriebsart",
+      "google_mapping_gcid": "gcid:bar",
+      "beschreibung": "Traditionelle deutsche Gaststätte"
+    },
+    {
+      "slug": "kueche_italienisch",
+      "name_de": "Italienische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:italian_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_chinesisch",
+      "name_de": "Chinesische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:chinese_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_griechisch",
+      "name_de": "Griechische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:greek_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_tuerkisch",
+      "name_de": "Türkische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:turkish_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_indisch",
+      "name_de": "Indische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:indian_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_japanisch",
+      "name_de": "Japanische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:japanese_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_thailaendisch",
+      "name_de": "Thailändische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:thai_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_vietnamesisch",
+      "name_de": "Vietnamesische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:vietnamese_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_mexikanisch",
+      "name_de": "Mexikanische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:mexican_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_amerikanisch",
+      "name_de": "Amerikanische Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:american_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "kueche_deutsch",
+      "name_de": "Deutsche Küche",
+      "dimension": "kueche",
+      "google_mapping_gcid": "gcid:german_restaurant",
+      "beschreibung": null
+    },
+    {
+      "slug": "angebot_fruehstueck",
+      "name_de": "Frühstück",
+      "dimension": "angebot",
+      "google_mapping_gcid": "gcid:breakfast_restaurant",
+      "beschreibung": "Bietet Frühstück an"
+    },
+    {
+      "slug": "angebot_brunch",
+      "name_de": "Brunch",
+      "dimension": "angebot",
+      "google_mapping_gcid": "gcid:brunch_restaurant",
+      "beschreibung": "Bietet Brunch an"
+    },
+    {
+      "slug": "angebot_mittagstisch",
+      "name_de": "Mittagstisch",
+      "dimension": "angebot",
+      "google_mapping_gcid": null,
+      "beschreibung": "Bietet günstigen Mittagstisch / Tagesmenü an"
+    },
+    {
+      "slug": "angebot_lieferservice",
+      "name_de": "Lieferservice",
+      "dimension": "angebot",
+      "google_mapping_gcid": null,
+      "beschreibung": "Bietet Lieferung an"
+    },
+    {
+      "slug": "angebot_catering",
+      "name_de": "Catering",
+      "dimension": "angebot",
+      "google_mapping_gcid": "gcid:caterer",
+      "beschreibung": "Bietet Catering-Service an"
+    },
+    {
+      "slug": "angebot_partyservice",
+      "name_de": "Partyservice",
+      "dimension": "angebot",
+      "google_mapping_gcid": "gcid:caterer",
+      "beschreibung": "Bietet Partyservice an"
+    }
+  ]
+}

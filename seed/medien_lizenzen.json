@@ -1,0 +1,13 @@
+[
+  {"code": "pd_textlogo", "name": "PD-textlogo", "kategorie": "frei", "beschreibung": "Public Domain — reine Textlogos ohne Schöpfungshöhe", "url": null},
+  {"code": "pd", "name": "Public Domain", "kategorie": "frei", "beschreibung": "Gemeinfrei — keine Urheberrechte", "url": null},
+  {"code": "cc0", "name": "CC0 1.0", "kategorie": "frei", "beschreibung": "Creative Commons Zero — vollständig gemeinfrei", "url": "https://creativecommons.org/publicdomain/zero/1.0/"},
+  {"code": "cc_by_4", "name": "CC BY 4.0", "kategorie": "frei", "beschreibung": "Creative Commons Namensnennung 4.0 International", "url": "https://creativecommons.org/licenses/by/4.0/"},
+  {"code": "cc_by_sa_4", "name": "CC BY-SA 4.0", "kategorie": "eingeschraenkt", "beschreibung": "CC Namensnennung, Weitergabe unter gleichen Bedingungen 4.0", "url": "https://creativecommons.org/licenses/by-sa/4.0/"},
+  {"code": "cc_by_nc_4", "name": "CC BY-NC 4.0", "kategorie": "eingeschraenkt", "beschreibung": "CC Namensnennung, nicht kommerziell 4.0", "url": "https://creativecommons.org/licenses/by-nc/4.0/"},
+  {"code": "cc_by_nc_sa_4", "name": "CC BY-NC-SA 4.0", "kategorie": "eingeschraenkt", "beschreibung": "CC Namensnennung, nicht kommerziell, Weitergabe unter gleichen Bedingungen 4.0", "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"},
+  {"code": "trademark", "name": "Trademark", "kategorie": "geschuetzt", "beschreibung": "Eingetragene Marke — Nutzung nur mit Genehmigung des Markeninhabers", "url": null},
+  {"code": "copyright", "name": "Copyright", "kategorie": "geschuetzt", "beschreibung": "Urheberrechtlich geschützt — alle Rechte vorbehalten", "url": null},
+  {"code": "pressefreigabe", "name": "Pressefreigabe", "kategorie": "frei", "beschreibung": "Vom Hersteller für Presse- und Informationszwecke freigegeben", "url": null},
+  {"code": "eigenkreation", "name": "Eigenkreation", "kategorie": "frei", "beschreibung": "Eigene Erstellung, volle Nutzungsrechte", "url": null}
+]

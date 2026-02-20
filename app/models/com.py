@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     Float,
     JSON,
     String,
@@ -134,6 +135,14 @@ class ComUnternehmen(Base):
     sprache_id = Column(UUID, ForeignKey("bas_sprache.id"), nullable=True)
     geo_ort_id = Column(UUID, ForeignKey("geo_ort.id"), nullable=True)  # kGeoOrt → GeoOrt
     wz_code = Column(String(10), ForeignKey("brn_branche.wz_code"), nullable=True)  # Primary WZ-2008 code
+    # Hersteller-spezifische Felder
+    gruendungsjahr = Column(Integer, nullable=True)
+    gruender = Column(String(255), nullable=True)
+    herkunftsland_id = Column(UUID, ForeignKey("geo_land.id"), nullable=True)
+    rechtsform_id = Column(UUID, ForeignKey("bas_rechtsform.id"), nullable=True)
+    gpsr_default_bevollmaechtigter_id = Column(
+        UUID, ForeignKey("com_unternehmen.id"), nullable=True
+    )  # Default EU-Bevollmächtigter für GPSR
     erstellt_am = Column(DateTime, default=datetime.utcnow)
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     geloescht_am = Column(DateTime, nullable=True)  # Soft delete timestamp
@@ -146,6 +155,14 @@ class ComUnternehmen(Base):
     sprache = relationship("BasSprache", lazy="joined")
     # Relationship to WZ-2008 Branche (primary classification)
     branche = relationship("BrnBranche", lazy="joined")
+    # Hersteller-spezifische Relationships
+    herkunftsland = relationship("GeoLand", foreign_keys=[herkunftsland_id], lazy="joined")
+    rechtsform = relationship("BasRechtsform", lazy="joined")
+    gpsr_default_bevollmaechtigter = relationship(
+        "ComUnternehmen",
+        foreign_keys=[gpsr_default_bevollmaechtigter_id],
+        remote_side=[id],
+    )
 
     # Relationship to Google Place Types (N:M)
     google_type_zuordnungen = relationship(
@@ -259,6 +276,35 @@ class ComUnternehmen(Base):
         cascade="all, delete-orphan",
     )
 
+    # Hersteller-Recherche: Profiltexte, Medien, Quellen, Vertriebsstruktur
+    profiltexte = relationship(
+        "ComProfiltext",
+        foreign_keys="ComProfiltext.unternehmen_id",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    medien = relationship(
+        "ComMedien",
+        foreign_keys="ComMedien.unternehmen_id",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    quellen = relationship(
+        "ComQuelle",
+        back_populates="unternehmen",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    vertriebskanaele = relationship(
+        "ComVertriebsstruktur",
+        foreign_keys="ComVertriebsstruktur.hersteller_id",
+        back_populates="hersteller",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("idx_unternehmen_geo_ort", "geo_ort_id"),
         Index("idx_unternehmen_kurzname", "kurzname"),
@@ -266,6 +312,9 @@ class ComUnternehmen(Base):
         Index("idx_unternehmen_sprache", "sprache_id"),
         Index("idx_unternehmen_status", "status_id"),
         Index("idx_unternehmen_wz_code", "wz_code"),
+        Index("idx_unternehmen_herkunftsland", "herkunftsland_id"),
+        Index("idx_unternehmen_rechtsform", "rechtsform_id"),
+        Index("idx_unternehmen_gpsr_bevollm", "gpsr_default_bevollmaechtigter_id"),
     )
 
     def __repr__(self):
@@ -417,6 +466,20 @@ class ComMarke(Base):
         "ComSerie", back_populates="marke",
         lazy="selectin", cascade="all, delete-orphan"
     )
+    profiltexte = relationship(
+        "ComProfiltext",
+        foreign_keys="ComProfiltext.marke_id",
+        back_populates="marke",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+    medien = relationship(
+        "ComMedien",
+        foreign_keys="ComMedien.marke_id",
+        back_populates="marke",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("uq_marke_hersteller_name", "hersteller_id", "name", unique=True),
@@ -442,6 +505,13 @@ class ComSerie(Base):
     aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     marke = relationship("ComMarke", back_populates="serien")
+    profiltexte = relationship(
+        "ComProfiltext",
+        foreign_keys="ComProfiltext.serie_id",
+        back_populates="serie",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("uq_serie_marke_name", "marke_id", "name", unique=True),
@@ -768,4 +838,179 @@ class ComUnternehmenKlassifikation(Base):
         Index("uq_unt_klass", "unternehmen_id", "klassifikation_id", unique=True),
         Index("idx_unt_klass_unternehmen", "unternehmen_id"),
         Index("idx_unt_klass_klassifikation", "klassifikation_id"),
+    )
+
+
+# ============ Profiltexte (B2C / B2B) ============
+
+
+class ComProfiltext(Base):
+    """
+    Profile text for a company, brand, or series (B2C/B2B, i18n-ready).
+
+    Polymorphic: exactly ONE of unternehmen_id, marke_id, serie_id must be set.
+    Allows separate B2C and B2B texts per entity and language.
+    """
+    __tablename__ = "com_profiltext"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=True)
+    marke_id = Column(UUID, ForeignKey("com_marke.id"), nullable=True)
+    serie_id = Column(UUID, ForeignKey("com_serie.id"), nullable=True)
+    typ = Column(String(10), nullable=False)  # "b2c", "b2b"
+    sprache = Column(String(5), nullable=False, default="de")  # ISO 639-1
+    text = Column(Text, nullable=False)
+    quelle = Column(String(50))  # "recherche_ki", "manuell"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="profiltexte")
+    marke = relationship("ComMarke", back_populates="profiltexte")
+    serie = relationship("ComSerie", back_populates="profiltexte")
+
+    __table_args__ = (
+        # Partial unique indices: one text per entity + language + type
+        Index(
+            "uq_profiltext_unternehmen",
+            "unternehmen_id", "sprache", "typ",
+            unique=True,
+            postgresql_where="unternehmen_id IS NOT NULL",
+        ),
+        Index(
+            "uq_profiltext_marke",
+            "marke_id", "sprache", "typ",
+            unique=True,
+            postgresql_where="marke_id IS NOT NULL",
+        ),
+        Index(
+            "uq_profiltext_serie",
+            "serie_id", "sprache", "typ",
+            unique=True,
+            postgresql_where="serie_id IS NOT NULL",
+        ),
+        Index("idx_profiltext_unternehmen", "unternehmen_id"),
+        Index("idx_profiltext_marke", "marke_id"),
+        Index("idx_profiltext_serie", "serie_id"),
+    )
+
+    def __repr__(self):
+        entity = self.unternehmen_id or self.marke_id or self.serie_id
+        return f"<ComProfiltext {self.typ}/{self.sprache} for {entity}>"
+
+
+# ============ Medien (Logos, Bilder) ============
+
+
+class ComMedien(Base):
+    """
+    Media asset for a company or brand (logos, images).
+
+    Polymorphic: exactly ONE of unternehmen_id, marke_id must be set.
+    Tracks download status and license information.
+    """
+    __tablename__ = "com_medien"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=True)
+    marke_id = Column(UUID, ForeignKey("com_marke.id"), nullable=True)
+    medienart = Column(String(20), nullable=False)  # "LOGO", "LOGO_ICON", "TITELBILD", "FOTO"
+    dateiname = Column(String(200))  # Local filename after download
+    dateiformat = Column(String(10))  # "png", "svg", "jpg"
+    url_quelle = Column(String(500))  # Source URL (where downloaded from)
+    alt_text = Column(String(200))
+    sortierung = Column(Integer, default=0)
+    ist_heruntergeladen = Column(Boolean, default=False)
+    download_fehler = Column(String(500))  # Error message on failed download
+    lizenz_id = Column(UUID, ForeignKey("bas_medien_lizenz.id"), nullable=True)
+    lizenz_hinweis = Column(String(500))  # Free-text license note
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="medien")
+    marke = relationship("ComMarke", back_populates="medien")
+    lizenz = relationship("BasMedienLizenz", lazy="joined")
+
+    __table_args__ = (
+        Index("idx_medien_unternehmen", "unternehmen_id"),
+        Index("idx_medien_marke", "marke_id"),
+        Index("idx_medien_lizenz", "lizenz_id"),
+        Index("idx_medien_art", "medienart"),
+    )
+
+    def __repr__(self):
+        entity = self.unternehmen_id or self.marke_id
+        return f"<ComMedien {self.medienart} for {entity}>"
+
+
+# ============ Quellen (Source References) ============
+
+
+class ComQuelle(Base):
+    """
+    Source reference for a company (URLs used during research).
+
+    Tracks where information came from (official website, Wikipedia, etc.).
+    """
+    __tablename__ = "com_quelle"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    unternehmen_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    url = Column(String(500), nullable=False)
+    beschreibung = Column(String(500))  # "Offizielle Website", "Wikipedia"
+    abrufdatum = Column(Date)  # When the source was accessed
+    quelle_typ = Column(String(30), default="recherche_ki")  # "recherche_ki", "manuell", "import"
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    unternehmen = relationship("ComUnternehmen", back_populates="quellen")
+
+    __table_args__ = (
+        Index("uq_quelle_url", "unternehmen_id", "url", unique=True),
+        Index("idx_quelle_unternehmen", "unternehmen_id"),
+    )
+
+    def __repr__(self):
+        return f"<ComQuelle {self.url[:50]}>"
+
+
+# ============ Vertriebsstruktur (Manufacturer Distribution) ============
+
+
+class ComVertriebsstruktur(Base):
+    """
+    Manufacturer-centric distribution channel.
+
+    Describes how a manufacturer's products can be sourced:
+    "MGA products are available through Zapf Creation (recommended for DACH)."
+
+    Distinct from ComLieferbeziehung which is dealer-centric:
+    "Dealer X buys from Supplier Y."
+    """
+    __tablename__ = "com_vertriebsstruktur"
+
+    id = Column(UUID, primary_key=True, default=generate_uuid)
+    hersteller_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    lieferant_id = Column(UUID, ForeignKey("com_unternehmen.id"), nullable=False)
+    rolle = Column(String(30), nullable=False)  # "tochtergesellschaft", "hauptlieferant", "grosshaendler", "importeur", "direktvertrieb"
+    region = Column(String(10))  # "DACH", "DE", "EU"
+    ist_empfohlen = Column(Boolean, default=False)
+    empfehlung_text = Column(Text)  # Free-text recommendation reason
+    sortierung = Column(Integer, default=0)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    hersteller = relationship(
+        "ComUnternehmen",
+        foreign_keys=[hersteller_id],
+        back_populates="vertriebskanaele",
+    )
+    lieferant = relationship("ComUnternehmen", foreign_keys=[lieferant_id])
+
+    __table_args__ = (
+        Index(
+            "uq_vertrieb_hersteller_lieferant_region",
+            "hersteller_id", "lieferant_id", "region",
+            unique=True,
+        ),
+        Index("idx_vertrieb_hersteller", "hersteller_id"),
+        Index("idx_vertrieb_lieferant", "lieferant_id"),
     )
